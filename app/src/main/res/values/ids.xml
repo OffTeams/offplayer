@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Исходный нижний отступ полосы перемотки видеоплеера -->
+    <item name="tag_base_margin" type="id" />
+    <item name="tag_sb_markers" type="id" />
+</resources>
