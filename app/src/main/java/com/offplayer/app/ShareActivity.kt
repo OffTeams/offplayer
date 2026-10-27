@@ -14,6 +14,10 @@ import com.offplayer.app.ui.theme.OffPlayerTheme
  * всплывает окно загрузки, приложение целиком не открывается.
  */
 class ShareActivity : ComponentActivity() {
+    override fun attachBaseContext(newBase: android.content.Context) {
+        super.attachBaseContext(L.wrap(newBase))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val text = intent?.getStringExtra(Intent.EXTRA_TEXT).orEmpty()

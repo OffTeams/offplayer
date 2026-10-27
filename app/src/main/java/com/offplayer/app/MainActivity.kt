@@ -52,6 +52,10 @@ import kotlinx.coroutines.launch
  * в «картинку в картинке» уходит всё приложение целиком и в списке недавних оно одно.
  */
 class MainActivity : ComponentActivity() {
+    override fun attachBaseContext(newBase: android.content.Context) {
+        super.attachBaseContext(L.wrap(newBase))
+    }
+
     private var sharedUrl by mutableStateOf<String?>(null)
     private var openPlayerTick by mutableIntStateOf(0)
     private var inPip by mutableStateOf(false)

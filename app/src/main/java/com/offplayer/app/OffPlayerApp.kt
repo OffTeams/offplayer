@@ -12,8 +12,14 @@ import com.offplayer.app.data.VideoMetaStore
 import com.offplayer.app.image.MediaThumbFetcher
 
 class OffPlayerApp : Application(), ImageLoaderFactory {
+    override fun attachBaseContext(base: android.content.Context) {
+        super.attachBaseContext(L.wrap(base))
+    }
+
     override fun onCreate() {
         super.onCreate()
+        // Язык интерфейса — первым: строки нужны уже при инициализации остального
+        L.init(this)
         AppSettings.init(this)
         PlaylistStore.init(this)
         VideoLibraryStore.init(this)
