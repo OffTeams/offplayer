@@ -19,7 +19,7 @@ class ShareActivity : ComponentActivity() {
         val text = intent?.getStringExtra(Intent.EXTRA_TEXT).orEmpty()
         val url = Regex("""https?://\S+""").find(text)?.value
         if (url == null || !Downloader.isSupportedUrl(url)) {
-            Toast.makeText(this, "Поддерживаются ссылки YouTube и YouTube Music", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, tr(R.string.share_unsupported), Toast.LENGTH_SHORT).show()
             finish()
             return
         }

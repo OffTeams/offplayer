@@ -1,5 +1,9 @@
 package com.offplayer.app.ui
 
+import com.offplayer.app.tr
+import com.offplayer.app.trn
+import com.offplayer.app.R
+
 import com.offplayer.app.ui.theme.AppShapes
 import android.net.Uri
 import androidx.compose.foundation.background
@@ -85,9 +89,9 @@ fun formatDuration(ms: Long): String {
 }
 
 fun formatSize(bytes: Long): String = when {
-    bytes >= 1L shl 30 -> "%.1f ГБ".format(bytes / (1L shl 30).toDouble())
-    bytes >= 1L shl 20 -> "%.0f МБ".format(bytes / (1L shl 20).toDouble())
-    else -> "%.0f КБ".format(bytes / 1024.0)
+    bytes >= 1L shl 30 -> tr(R.string.size_gb, bytes / (1L shl 30).toDouble())
+    bytes >= 1L shl 20 -> tr(R.string.size_mb, bytes / (1L shl 20).toDouble())
+    else -> tr(R.string.size_kb, bytes / 1024.0)
 }
 
 fun plural(n: Int, one: String, few: String, many: String): String {
@@ -102,7 +106,7 @@ fun plural(n: Int, one: String, few: String, many: String): String {
     return "$n $word"
 }
 
-fun tracksCount(n: Int) = plural(n, "трек", "трека", "треков")
+fun tracksCount(n: Int) = trn(R.plurals.tracks, n)
 
 /**
  * Запрос на удаление файлов. Свои файлы приложения удаляются напрямую,
@@ -250,7 +254,7 @@ fun TrackRow(
                         .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(Icons.Rounded.Check, "Выбран", tint = MaterialTheme.colorScheme.onPrimary)
+                    Icon(Icons.Rounded.Check, tr(R.string.selected), tint = MaterialTheme.colorScheme.onPrimary)
                 }
             } else if (isCurrent) {
                 Box(
@@ -292,29 +296,29 @@ fun TrackMenu(track: Track, extraMenu: @Composable ColumnScope.(dismiss: () -> U
     var open by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { open = true }) {
-            Icon(Icons.Rounded.MoreVert, "Ещё", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(Icons.Rounded.MoreVert, tr(R.string.more), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             DropdownMenuItem(
-                text = { Text("Воспроизвести далее") },
+                text = { Text(tr(R.string.play_next)) },
                 leadingIcon = { Icon(Icons.Rounded.SkipNext, null) },
                 onClick = {
                     open = false
                     MusicController.playNext(listOf(track))
-                    Toast.makeText(context, "Будет воспроизведено следующим", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, tr(R.string.will_play_next), Toast.LENGTH_SHORT).show()
                 },
             )
             DropdownMenuItem(
-                text = { Text("Добавить в очередь") },
+                text = { Text(tr(R.string.add_to_queue)) },
                 leadingIcon = { Icon(Icons.AutoMirrored.Rounded.QueueMusic, null) },
                 onClick = {
                     open = false
                     MusicController.addToQueue(listOf(track))
-                    Toast.makeText(context, "Добавлено в очередь", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, tr(R.string.added_to_queue), Toast.LENGTH_SHORT).show()
                 },
             )
             DropdownMenuItem(
-                text = { Text("Добавить в плейлист") },
+                text = { Text(tr(R.string.add_to_playlist)) },
                 leadingIcon = { Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, null) },
                 onClick = {
                     open = false
@@ -323,7 +327,7 @@ fun TrackMenu(track: Track, extraMenu: @Composable ColumnScope.(dismiss: () -> U
             )
             extraMenu { open = false }
             DropdownMenuItem(
-                text = { Text(if (track.isDevice) "Удалить с устройства" else "Удалить", color = MaterialTheme.colorScheme.error) },
+                text = { Text(if (track.isDevice) tr(R.string.delete_from_device) else tr(R.string.action_delete), color = MaterialTheme.colorScheme.error) },
                 leadingIcon = { Icon(Icons.Rounded.DeleteForever, null, tint = MaterialTheme.colorScheme.error) },
                 onClick = {
                     open = false
@@ -341,7 +345,7 @@ fun AddToPlaylistDialog(trackIds: List<Long>, onDismiss: () -> Unit) {
     var newName by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Добавить в плейлист") },
+        title = { Text(tr(R.string.add_to_playlist)) },
         text = {
             Column {
                 LazyColumn(Modifier.heightIn(max = 300.dp)) {
@@ -352,7 +356,7 @@ fun AddToPlaylistDialog(trackIds: List<Long>, onDismiss: () -> Unit) {
                                 .fillMaxWidth()
                                 .clickable {
                                     PlaylistStore.addTracks(p.id, trackIds)
-                                    Toast.makeText(context, "Добавлено в «${p.name}»", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, tr(R.string.added_to, p.name), Toast.LENGTH_SHORT).show()
                                     onDismiss()
                                 }
                                 .padding(vertical = 14.dp),
@@ -364,7 +368,7 @@ fun AddToPlaylistDialog(trackIds: List<Long>, onDismiss: () -> Unit) {
                 OutlinedTextField(
                     value = newName,
                     onValueChange = { newName = it },
-                    label = { Text("Новый плейлист") },
+                    label = { Text(tr(R.string.new_playlist)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -375,15 +379,15 @@ fun AddToPlaylistDialog(trackIds: List<Long>, onDismiss: () -> Unit) {
                 enabled = newName.isNotBlank(),
                 onClick = {
                     val p = PlaylistStore.create(newName, trackIds)
-                    Toast.makeText(context, "Создан «${p.name}»", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, tr(R.string.created, p.name), Toast.LENGTH_SHORT).show()
                     onDismiss()
                 },
             ) {
                 Icon(Icons.Rounded.Add, null)
-                Text("Создать")
+                Text(tr(R.string.action_create))
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(tr(R.string.action_cancel)) } },
     )
 }
 
@@ -405,7 +409,7 @@ fun TextInputDialog(
         confirmButton = {
             TextButton(enabled = value.isNotBlank(), onClick = { onConfirm(value); onDismiss() }) { Text(confirmLabel) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(tr(R.string.action_cancel)) } },
     )
 }
 

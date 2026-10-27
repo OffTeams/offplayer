@@ -1,5 +1,9 @@
 package com.offplayer.app.ui.music
 
+import com.offplayer.app.tr
+import com.offplayer.app.trn
+import com.offplayer.app.R
+
 import com.offplayer.app.ui.theme.AppShapes
 import androidx.compose.ui.draw.clip
 import androidx.activity.compose.BackHandler
@@ -101,12 +105,12 @@ import com.offplayer.app.ui.TrackRow
 import com.offplayer.app.ui.plural
 import com.offplayer.app.ui.tracksCount
 
-enum class MusicSection(val label: String) {
-    TRACKS("Треки"), ALBUMS("Альбомы"), ARTISTS("Исполнители"), PLAYLISTS("Плейлисты"), MIXES("Миксы"), DEVICE("На устройстве")
+enum class MusicSection(@androidx.annotation.StringRes private val res: Int) {
+    TRACKS(R.string.sec_tracks), ALBUMS(R.string.sec_albums), ARTISTS(R.string.sec_artists), PLAYLISTS(R.string.sec_playlists), MIXES(R.string.sec_mixes), DEVICE(R.string.sec_device); val label: String get() = tr(res)
 }
 
-enum class TrackSort(val label: String) {
-    TITLE("Название"), ARTIST("Исполнитель"), ALBUM("Альбом"), DATE_ADDED("Дата добавления"), DURATION("Длительность")
+enum class TrackSort(@androidx.annotation.StringRes private val res: Int) {
+    TITLE(R.string.tsort_title), ARTIST(R.string.tsort_artist), ALBUM(R.string.tsort_album), DATE_ADDED(R.string.tsort_date), DURATION(R.string.tsort_duration); val label: String get() = tr(res)
 }
 
 sealed interface MusicDest {
@@ -196,7 +200,7 @@ fun MusicScreen() {
                     TextField(
                         value = query,
                         onValueChange = { query = it },
-                        placeholder = { Text("Поиск музыки") },
+                        placeholder = { Text(tr(R.string.search_music)) },
                         singleLine = true,
                         colors = TextFieldDefaults.colors(
                             focusedContainerColor = Color.Transparent,
@@ -205,12 +209,12 @@ fun MusicScreen() {
                         modifier = Modifier.fillMaxWidth(),
                     )
                 } else {
-                    Text("Музыка", fontWeight = FontWeight.Bold)
+                    Text(tr(R.string.tab_music), fontWeight = FontWeight.Bold)
                 }
             },
             actions = {
                 IconButton(onClick = { searching = !searching; if (!searching) query = "" }) {
-                    Icon(if (searching) Icons.Rounded.Close else Icons.Rounded.Search, "Поиск")
+                    Icon(if (searching) Icons.Rounded.Close else Icons.Rounded.Search, tr(R.string.search))
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
@@ -235,8 +239,8 @@ fun MusicScreen() {
 
         if (tracks.isEmpty() && section in listOf(MusicSection.TRACKS, MusicSection.ALBUMS, MusicSection.ARTISTS)) {
             EmptyState(
-                Icons.Rounded.LibraryMusic, "Музыки пока нет",
-                "Скачайте треки во вкладке «Загрузки» или включите в настройках загрузок контент из памяти устройства.",
+                Icons.Rounded.LibraryMusic, tr(R.string.no_music),
+                tr(R.string.no_music_desc),
             )
             return@Column
         }
@@ -297,7 +301,7 @@ private fun TracksSection(tracks: List<Track>, currentId: Long?, highlight: Long
                 OutlinedButton(onClick = { MusicController.playTracks(sorted, shuffle = true) }) {
                     Icon(Icons.Rounded.Shuffle, null, Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text("Перемешать")
+                    Text(tr(R.string.order_shuffle))
                 }
                 Spacer(Modifier.weight(1f))
                 SortMenu(sort, descending, onSort = { sort = it }, onToggleDirection = { descending = !descending })
@@ -340,7 +344,7 @@ private fun DeviceMusicSection(query: String, currentId: Long?) {
             .mapValues { (_, list) -> list.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title }) }
     }
     if (groups.isEmpty()) {
-        EmptyState(Icons.Rounded.LibraryMusic, "На устройстве нет музыки", "Аудиофайлы из памяти телефона появятся здесь, сгруппированные по папкам.")
+        EmptyState(Icons.Rounded.LibraryMusic, tr(R.string.no_device_music), tr(R.string.no_device_music_desc))
         return
     }
     var collapsed by rememberSaveable { mutableStateOf(setOf<String>()) }
@@ -383,10 +387,10 @@ private fun SelectionBar(
     androidx.compose.material3.Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, shadowElevation = 4.dp) {
         Column(Modifier.fillMaxWidth()) {
             Row(Modifier.fillMaxWidth().padding(end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onClose) { Icon(Icons.Rounded.Close, "Отменить выбор") }
-                Text("Выбрано: $count", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                IconButton(onClick = onClose) { Icon(Icons.Rounded.Close, tr(R.string.cancel_selection)) }
+                Text(trn(R.plurals.tracks_selected, count), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                 IconButton(onClick = onSelectAll) {
-                    Icon(if (allSelected) Icons.Rounded.RemoveDone else Icons.Rounded.SelectAll, "Выбрать все")
+                    Icon(if (allSelected) Icons.Rounded.RemoveDone else Icons.Rounded.SelectAll, tr(R.string.select_all))
                 }
             }
             Row(
@@ -397,17 +401,47 @@ private fun SelectionBar(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 // Быстрый плейлист — от двух треков
-                SelectionAction(Icons.Rounded.PlayArrow, "Слушать", enabled = count >= 2, onClick = onPlay, modifier = Modifier.weight(1f))
-                SelectionAction(Icons.AutoMirrored.Rounded.QueueMusic, "В очередь", onClick = onQueue, modifier = Modifier.weight(1f))
-                SelectionAction(Icons.AutoMirrored.Rounded.PlaylistAdd, "В плейлист", onClick = onAddToPlaylist, modifier = Modifier.weight(1f))
-                SelectionAction(Icons.Rounded.Delete, "Удалить", onClick = onDelete, modifier = Modifier.weight(1f), danger = true)
+                SelectionAction(Icons.Rounded.PlayArrow, tr(R.string.action_listen), enabled = count >= 2, onClick = onPlay, modifier = Modifier.weight(1f))
+                SelectionAction(Icons.AutoMirrored.Rounded.QueueMusic, tr(R.string.to_queue), onClick = onQueue, modifier = Modifier.weight(1f))
+                SelectionAction(Icons.AutoMirrored.Rounded.PlaylistAdd, tr(R.string.to_playlist), onClick = onAddToPlaylist, modifier = Modifier.weight(1f))
+                SelectionAction(Icons.Rounded.Delete, tr(R.string.action_delete), onClick = onDelete, modifier = Modifier.weight(1f), danger = true)
             }
         }
     }
 }
 
+/** Та же панель выбора с произвольным набором действий — для подкастов и видео. */
 @Composable
-private fun SelectionAction(
+internal fun SelectionPanel(
+    count: Int,
+    allSelected: Boolean,
+    onClose: () -> Unit,
+    onSelectAll: () -> Unit,
+    actions: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit,
+) {
+    androidx.compose.material3.Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, shadowElevation = 4.dp) {
+        Column(Modifier.fillMaxWidth()) {
+            Row(Modifier.fillMaxWidth().padding(end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onClose) { Icon(Icons.Rounded.Close, tr(R.string.cancel_selection)) }
+                Text(trn(R.plurals.tracks_selected, count), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                IconButton(onClick = onSelectAll) {
+                    Icon(if (allSelected) Icons.Rounded.RemoveDone else Icons.Rounded.SelectAll, tr(R.string.select_all))
+                }
+            }
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                content = actions,
+            )
+        }
+    }
+}
+
+@Composable
+internal fun SelectionAction(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
     onClick: () -> Unit,
@@ -429,7 +463,11 @@ private fun SelectionAction(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Icon(icon, null, tint = color, modifier = Modifier.size(22.dp))
-        Text(label, style = MaterialTheme.typography.labelMedium, color = color, maxLines = 1)
+        Text(
+            label, style = MaterialTheme.typography.labelMedium, color = color, maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 4.dp),
+        )
     }
 }
 
@@ -457,7 +495,7 @@ private fun SortMenu(sort: TrackSort, descending: Boolean, onSort: (TrackSort) -
                 )
             }
             DropdownMenuItem(
-                text = { Text(if (descending) "По возрастанию" else "По убыванию") },
+                text = { Text(if (descending) tr(R.string.sort_ascending) else tr(R.string.sort_descending)) },
                 onClick = { onToggleDirection(); open = false },
             )
         }
@@ -531,8 +569,8 @@ private fun PlaylistsSection(query: String, mixes: Boolean, onOpen: (Playlist) -
 
     if (mixes && shown.isEmpty()) {
         EmptyState(
-            Icons.AutoMirrored.Rounded.PlaylistPlay, "Миксов пока нет",
-            "Вставьте во вкладке «Загрузки» ссылку на плейлист YouTube или YouTube Music и включите «Скачать весь плейлист» — он появится здесь.",
+            Icons.AutoMirrored.Rounded.PlaylistPlay, tr(R.string.no_mixes),
+            tr(R.string.no_mixes_desc),
         )
         return
     }
@@ -546,18 +584,18 @@ private fun PlaylistsSection(query: String, mixes: Boolean, onOpen: (Playlist) -
             ) {
                 Icon(Icons.Rounded.Add, null)
                 Spacer(Modifier.width(6.dp))
-                Text("Новый плейлист")
+                Text(tr(R.string.new_playlist))
             }
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 EmptyState(
-                    Icons.AutoMirrored.Rounded.PlaylistPlay, "Плейлистов пока нет",
-                    "Создайте плейлист и добавляйте в него треки через меню «⋮» у трека.",
+                    Icons.AutoMirrored.Rounded.PlaylistPlay, tr(R.string.no_playlists),
+                    tr(R.string.no_playlists_desc),
                 )
             }
         }
         if (creating) {
             TextInputDialog(
-                title = "Новый плейлист", initial = "", confirmLabel = "Создать",
+                title = tr(R.string.new_playlist), initial = "", confirmLabel = tr(R.string.action_create),
                 onConfirm = { PlaylistStore.create(it) }, onDismiss = { creating = false },
             )
         }
@@ -575,7 +613,7 @@ private fun PlaylistsSection(query: String, mixes: Boolean, onOpen: (Playlist) -
             OutlinedButton(onClick = { creating = true }, modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Rounded.Add, null)
                 Spacer(Modifier.width(6.dp))
-                Text("Новый плейлист")
+                Text(tr(R.string.new_playlist))
             }
         }
         items(shown, key = { it.id }) { p ->
@@ -585,7 +623,7 @@ private fun PlaylistsSection(query: String, mixes: Boolean, onOpen: (Playlist) -
                 Spacer(Modifier.height(8.dp))
                 Text(p.name, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
                 Text(
-                    "${if (p.isMix) "Микс" else "Плейлист"} • ${tracksCount(p.trackIds.size)}",
+                    "${if (p.isMix) tr(R.string.mix) else tr(R.string.playlist)} • ${tracksCount(p.trackIds.size)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -594,7 +632,7 @@ private fun PlaylistsSection(query: String, mixes: Boolean, onOpen: (Playlist) -
     }
     if (creating) {
         TextInputDialog(
-            title = "Новый плейлист", initial = "", confirmLabel = "Создать",
+            title = tr(R.string.new_playlist), initial = "", confirmLabel = tr(R.string.action_create),
             onConfirm = { PlaylistStore.create(it) }, onDismiss = { creating = false },
         )
     }
@@ -616,7 +654,7 @@ private fun CollectionScreen(dest: MusicDest, allTracks: List<Track>, currentId:
             val list = remember(allTracks, dest) {
                 allTracks.filter { it.artist == dest.name }.sortedBy(TrackSort.ALBUM, false)
             }
-            SimpleCollection(dest.name, "Исполнитель", list, currentId, Icons.Rounded.Person, onBack, round = true)
+            SimpleCollection(dest.name, tr(R.string.artist), list, currentId, Icons.Rounded.Person, onBack, round = true)
         }
     }
 }
@@ -654,7 +692,7 @@ private fun SimpleCollection(
 
 fun totalDuration(tracks: List<Track>): String {
     val min = (tracks.sumOf { it.durationMs } / 60_000).toInt()
-    return if (min >= 60) "${min / 60} ч ${min % 60} мин" else plural(min, "минута", "минуты", "минут")
+    return if (min >= 60) tr(R.string.hours_minutes, min / 60, min % 60) else trn(R.plurals.minutes, min)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -665,7 +703,7 @@ fun CollectionTopBar(title: String, onBack: () -> Unit, actions: @Composable and
         title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         navigationIcon = {
             IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Назад")
+                Icon(Icons.AutoMirrored.Rounded.ArrowBack, tr(R.string.action_back))
             }
         },
         actions = actions,
@@ -708,12 +746,12 @@ fun CollectionHeader(
             ) {
                 Icon(Icons.Rounded.PlayArrow, null)
                 Spacer(Modifier.width(4.dp))
-                Text("Слушать")
+                Text(tr(R.string.action_listen))
             }
             OutlinedButton(onClick = onShuffle) {
                 Icon(Icons.Rounded.Shuffle, null, Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("Перемешать")
+                Text(tr(R.string.order_shuffle))
             }
         }
         extra()
@@ -725,16 +763,16 @@ fun PlaylistMenu(playlist: Playlist, onRename: () -> Unit, onDelete: () -> Unit,
     var open by remember { mutableStateOf(false) }
     var sortOpen by remember { mutableStateOf(false) }
     Box {
-        IconButton(onClick = { open = true }) { Icon(Icons.Rounded.MoreVert, "Ещё") }
+        IconButton(onClick = { open = true }) { Icon(Icons.Rounded.MoreVert, tr(R.string.more)) }
         DropdownMenu(open, onDismissRequest = { open = false }) {
-            DropdownMenuItem(text = { Text("Упорядочить…") }, leadingIcon = { Icon(Icons.AutoMirrored.Rounded.Sort, null) },
+            DropdownMenuItem(text = { Text(tr(R.string.reorder)) }, leadingIcon = { Icon(Icons.AutoMirrored.Rounded.Sort, null) },
                 onClick = { open = false; sortOpen = true })
-            DropdownMenuItem(text = { Text("Переименовать") }, leadingIcon = { Icon(Icons.Rounded.Edit, null) },
+            DropdownMenuItem(text = { Text(tr(R.string.rename)) }, leadingIcon = { Icon(Icons.Rounded.Edit, null) },
                 onClick = { open = false; onRename() })
-            DropdownMenuItem(text = { Text(if (playlist.isMix) "Удалить микс" else "Удалить плейлист") }, leadingIcon = { Icon(Icons.Rounded.Delete, null) },
+            DropdownMenuItem(text = { Text(if (playlist.isMix) tr(R.string.delete_mix) else tr(R.string.delete_playlist)) }, leadingIcon = { Icon(Icons.Rounded.Delete, null) },
                 onClick = { open = false; onDelete() })
             DropdownMenuItem(
-                text = { Text("Удалить вместе с треками", color = MaterialTheme.colorScheme.error) },
+                text = { Text(tr(R.string.delete_with_tracks), color = MaterialTheme.colorScheme.error) },
                 leadingIcon = { Icon(Icons.Rounded.DeleteForever, null, tint = MaterialTheme.colorScheme.error) },
                 onClick = { open = false; onDeleteWithTracks() },
             )

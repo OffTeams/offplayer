@@ -1,5 +1,15 @@
 package com.offplayer.app.ui.podcast
 
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Delete
+import com.offplayer.app.ui.music.SelectionPanel
+import com.offplayer.app.ui.music.SelectionAction
+import com.offplayer.app.ui.tracksCount
+import androidx.compose.runtime.LaunchedEffect
+import com.offplayer.app.tr
+import com.offplayer.app.R
+
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
@@ -128,13 +138,16 @@ import kotlin.math.roundToInt
 // ---------- Тематика и обложка ----------
 
 /** Тематика длинного аудио — по ней рисуется обложка. */
-enum class PodcastKind(val label: String, val plural: String, val colors: List<Color>) {
-    TALK("Разговорный подкаст", "Разговорные", listOf(Color(0xFF6A3FD0), Color(0xFF2B1B5E))),
-    AUDIOBOOK("Аудиокнига", "Аудиокниги", listOf(Color(0xFFB7793A), Color(0xFF4A2C14))),
-    NEWS("Новости", "Новости", listOf(Color(0xFF2F6FB0), Color(0xFF13304F))),
-    TECH("Техника", "Техника", listOf(Color(0xFF1C9A8A), Color(0xFF0D3B37))),
-    GAMING("Игры", "Игры", listOf(Color(0xFFD0405E), Color(0xFF3E1230))),
+enum class PodcastKind(@androidx.annotation.StringRes private val labelRes: Int, @androidx.annotation.StringRes private val pluralRes: Int, val colors: List<Color>) {
+    TALK(R.string.pk_talk, R.string.pk_talk_pl, listOf(Color(0xFF6A3FD0), Color(0xFF2B1B5E))),
+    AUDIOBOOK(R.string.pk_audiobook, R.string.pk_audiobook_pl, listOf(Color(0xFFB7793A), Color(0xFF4A2C14))),
+    NEWS(R.string.pk_news, R.string.pk_news, listOf(Color(0xFF2F6FB0), Color(0xFF13304F))),
+    TECH(R.string.pk_tech, R.string.pk_tech, listOf(Color(0xFF1C9A8A), Color(0xFF0D3B37))),
+    GAMING(R.string.pk_games, R.string.pk_games, listOf(Color(0xFFD0405E), Color(0xFF3E1230))),
     ;
+
+    val label: String get() = tr(labelRes)
+    val plural: String get() = tr(pluralRes)
 
     companion object {
         private val keywords = mapOf(
@@ -236,25 +249,25 @@ fun PodcastScreen() {
                 if (searching) {
                     TextField(
                         value = query, onValueChange = { query = it },
-                        placeholder = { Text("Поиск подкастов") }, singleLine = true,
+                        placeholder = { Text(tr(R.string.search_podcasts)) }, singleLine = true,
                         colors = TextFieldDefaults.colors(focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent),
                         modifier = Modifier.fillMaxWidth(),
                     )
                 } else {
-                    Text("Подкасты", fontWeight = FontWeight.Bold)
+                    Text(tr(R.string.tab_podcasts), fontWeight = FontWeight.Bold)
                 }
             },
             actions = {
                 IconButton(onClick = { searching = !searching; if (!searching) query = "" }) {
-                    Icon(if (searching) Icons.Rounded.Close else Icons.Rounded.Search, "Поиск")
+                    Icon(if (searching) Icons.Rounded.Close else Icons.Rounded.Search, tr(R.string.search))
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
         )
         if (podcasts.isEmpty()) {
             EmptyState(
-                Icons.Rounded.Podcasts, "Подкастов пока нет",
-                "Скачайте длинное аудио во вкладке «Загрузки» и сохраните его как подкаст — оно появится здесь.",
+                Icons.Rounded.Podcasts, tr(R.string.no_podcasts),
+                tr(R.string.no_podcasts_desc),
             )
             return@Column
         }
@@ -265,12 +278,52 @@ fun PodcastScreen() {
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.padding(bottom = 4.dp),
         ) {
-            item { CategoryChip("Все", filter == null) { filter = null } }
+            item { CategoryChip(tr(R.string.all), filter == null) { filter = null } }
             items(present) { k -> CategoryChip(k.plural, filter == k) { filter = if (filter == k) null else k } }
+        }
+        // Выбор нескольких: долгое нажатие начинает выбор, затем нажатия отмечают выпуски
+        var selected by remember { mutableStateOf(setOf<Long>()) }
+        var choosingKind by remember { mutableStateOf(false) }
+        val selecting = selected.isNotEmpty()
+        LaunchedEffect(shown) { selected = selected.filterTo(HashSet()) { id -> shown.any { it.id == id } } }
+        BackHandler(selecting && LocalScreenBackEnabled.current) { selected = emptySet() }
+        if (selecting) {
+            SelectionPanel(
+                count = selected.size,
+                allSelected = selected.size == shown.size,
+                onClose = { selected = emptySet() },
+                onSelectAll = { selected = if (selected.size == shown.size) emptySet() else shown.map { it.id }.toSet() },
+            ) {
+                SelectionAction(Icons.Rounded.Category, tr(R.string.category), onClick = { choosingKind = true }, modifier = Modifier.weight(1f))
+                SelectionAction(
+                    Icons.Rounded.Delete, tr(R.string.action_delete), danger = true, modifier = Modifier.weight(1f),
+                    onClick = {
+                        val chosen = shown.filter { it.id in selected }
+                        UiEvents.delete.value = DeleteRequest.tracks(chosen, tracksCount(chosen.size))
+                        selected = emptySet()
+                    },
+                )
+            }
         }
         LazyColumn(Modifier.fillMaxSize()) {
             items(shown, key = { it.id }) { p ->
-                PodcastRow(p, kinds[p.id] ?: PodcastKind.TALK, positions[p.id] ?: 0L, isCurrent = player.trackId == p.id)
+                PodcastRow(
+                    p, kinds[p.id] ?: PodcastKind.TALK, positions[p.id] ?: 0L, isCurrent = player.trackId == p.id,
+                    selected = if (selecting) p.id in selected else null,
+                    onClick = {
+                        if (selecting) selected = if (p.id in selected) selected - p.id else selected + p.id
+                        else MusicController.playPodcast(p)
+                    },
+                    onLongClick = { selected = selected + p.id },
+                )
+            }
+        }
+        if (choosingKind) {
+            val common = selected.map { kinds[it] }.distinct().singleOrNull()
+            KindDialog(common, onDismiss = { choosingKind = false }) { k ->
+                selected.forEach { PodcastProgress.setKind(it, k.name) }
+                choosingKind = false
+                selected = emptySet()
             }
         }
     }
@@ -287,23 +340,51 @@ private fun CategoryChip(label: String, selected: Boolean, onClick: () -> Unit) 
     )
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun PodcastRow(track: Track, kind: PodcastKind, positionMs: Long, isCurrent: Boolean) {
+private fun PodcastRow(
+    track: Track,
+    kind: PodcastKind,
+    positionMs: Long,
+    isCurrent: Boolean,
+    /** Режим выбора: null — обычный список, true/false — отмечен ли выпуск. */
+    selected: Boolean?,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+) {
     var menu by remember { mutableStateOf(false) }
     var choosing by remember { mutableStateOf(false) }
     val listened = if (track.durationMs > 0) (positionMs.toFloat() / track.durationMs).coerceIn(0f, 1f) else 0f
     Row(
         Modifier
             .fillMaxWidth()
-            .background(if (isCurrent) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f) else Color.Transparent)
-            .clickable { MusicController.playPodcast(track) }
-            .padding(start = 16.dp, top = 10.dp, bottom = 10.dp),
+            .background(
+                when {
+                    selected == true -> MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
+                    isCurrent -> MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
+                    else -> Color.Transparent
+                }
+            )
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .padding(start = 16.dp, top = 10.dp, bottom = 10.dp, end = if (selected != null) 16.dp else 0.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // В списке — настоящее превью аудио; тематическая обложка с анимацией — в плеере
         Box {
             com.offplayer.app.ui.MediaArt(track.uri, Modifier.size(72.dp), shape = AppShapes.Card, icon = Icons.Rounded.Podcasts)
-            PodcastCover(kind, Modifier.align(Alignment.BottomEnd).padding(4.dp).size(22.dp), corner = 6.dp)
+            if (selected == true) {
+                Box(
+                    Modifier
+                        .size(72.dp)
+                        .clip(AppShapes.Card)
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Rounded.Check, tr(R.string.selected), tint = MaterialTheme.colorScheme.onPrimary)
+                }
+            } else {
+                PodcastCover(kind, Modifier.align(Alignment.BottomEnd).padding(4.dp).size(22.dp), corner = 6.dp)
+            }
         }
         Column(
             Modifier
@@ -320,8 +401,8 @@ private fun PodcastRow(track: Track, kind: PodcastKind, positionMs: Long, isCurr
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     when {
-                        listened >= 0.97f -> "Прослушано"
-                        positionMs > 0 -> "Осталось ${formatDuration(track.durationMs - positionMs)}"
+                        listened >= 0.97f -> tr(R.string.listened)
+                        positionMs > 0 -> tr(R.string.left_time, formatDuration(track.durationMs - positionMs))
                         else -> formatDuration(track.durationMs)
                     },
                     style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -338,17 +419,17 @@ private fun PodcastRow(track: Track, kind: PodcastKind, positionMs: Long, isCurr
                 }
             }
         }
-        Box {
-            IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreVert, "Ещё", tint = MaterialTheme.colorScheme.onSurfaceVariant) }
+        if (selected == null) Box {
+            IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreVert, tr(R.string.more), tint = MaterialTheme.colorScheme.onSurfaceVariant) }
             DropdownMenu(menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(
-                    text = { Text("Категория…") },
+                    text = { Text(tr(R.string.category_ellipsis)) },
                     leadingIcon = { Icon(Icons.Rounded.Category, null) },
                     onClick = { menu = false; choosing = true },
                 )
                 HorizontalDivider()
                 DropdownMenuItem(
-                    text = { Text("Удалить", color = MaterialTheme.colorScheme.error) },
+                    text = { Text(tr(R.string.action_delete), color = MaterialTheme.colorScheme.error) },
                     leadingIcon = { Icon(Icons.Rounded.DeleteForever, null, tint = MaterialTheme.colorScheme.error) },
                     onClick = { menu = false; UiEvents.delete.value = DeleteRequest.tracks(listOf(track), track.title) },
                 )
@@ -356,9 +437,17 @@ private fun PodcastRow(track: Track, kind: PodcastKind, positionMs: Long, isCurr
         }
     }
     if (choosing) {
+        KindDialog(kind, onDismiss = { choosing = false }) { k -> PodcastProgress.setKind(track.id, k.name); choosing = false }
+    }
+}
+
+/** Выбор категории подкаста; current == null — у выбранных выпусков разные категории. */
+@Composable
+private fun KindDialog(current: PodcastKind?, onDismiss: () -> Unit, onPick: (PodcastKind) -> Unit) {
+    run {
         AlertDialog(
-            onDismissRequest = { choosing = false },
-            title = { Text("Категория") },
+            onDismissRequest = onDismiss,
+            title = { Text(tr(R.string.category)) },
             text = {
                 Column {
                     PodcastKind.entries.forEach { k ->
@@ -366,11 +455,11 @@ private fun PodcastRow(track: Track, kind: PodcastKind, positionMs: Long, isCurr
                             Modifier
                                 .fillMaxWidth()
                                 .clip(AppShapes.Thumb)
-                                .clickable { PodcastProgress.setKind(track.id, k.name); choosing = false }
+                                .clickable { onPick(k) }
                                 .padding(vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            RadioButton(selected = k == kind, onClick = null)
+                            RadioButton(selected = k == current, onClick = null)
                             Spacer(Modifier.width(10.dp))
                             PodcastCover(k, Modifier.size(28.dp), corner = 8.dp)
                             Spacer(Modifier.width(10.dp))
@@ -379,7 +468,7 @@ private fun PodcastRow(track: Track, kind: PodcastKind, positionMs: Long, isCurr
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = { choosing = false }) { Text("Закрыть") } },
+            confirmButton = { TextButton(onClick = onDismiss) { Text(tr(R.string.action_close)) } },
         )
     }
 }
@@ -397,9 +486,9 @@ fun PodcastMiniPlayer(state: PlayerUiState, track: Track?, onExpand: () -> Unit)
         onOpen = onExpand,
         art = { com.offplayer.app.ui.MediaArt(track?.uri, Modifier.size(44.dp), shape = AppShapes.Thumb, icon = Icons.Rounded.Podcasts) },
     ) {
-        IconButton(onClick = { MusicController.seekBy(-15_000) }) { Icon(Icons.Rounded.Replay, "Назад 15 секунд") }
+        IconButton(onClick = { MusicController.seekBy(-15_000) }) { Icon(Icons.Rounded.Replay, tr(R.string.back_15)) }
         IconButton(onClick = MusicController::togglePlay) { PlayPauseIcon(state.isPlaying, Modifier.size(30.dp)) }
-        IconButton(onClick = MusicController::stop) { Icon(Icons.Rounded.Close, "Завершить прослушивание") }
+        IconButton(onClick = MusicController::stop) { Icon(Icons.Rounded.Close, tr(R.string.stop_listening)) }
     }
 }
 
@@ -452,14 +541,14 @@ fun PodcastPlayerScreen(state: PlayerUiState, track: Track?, onCollapse: () -> U
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onCollapse) { Icon(Icons.Rounded.KeyboardArrowDown, "Свернуть", Modifier.size(32.dp)) }
+                    IconButton(onClick = onCollapse) { Icon(Icons.Rounded.KeyboardArrowDown, tr(R.string.action_collapse), Modifier.size(32.dp)) }
                     Row(Modifier.weight(1f), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                         EqualizerBars(state.isPlaying, pal.accent)
                         Spacer(Modifier.width(8.dp))
                         Text(kind.label.uppercase(), style = MaterialTheme.typography.labelSmall, color = pal.contentSecondary)
                     }
                     if (showSleep) SleepTimerButton(state, pal)
-                    IconButton(onClick = onStop) { Icon(Icons.Rounded.Close, "Завершить прослушивание") }
+                    IconButton(onClick = onStop) { Icon(Icons.Rounded.Close, tr(R.string.stop_listening)) }
                 }
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     // Превью самого аудио; на паузе чуть уменьшается
@@ -490,7 +579,7 @@ fun PodcastPlayerScreen(state: PlayerUiState, track: Track?, onCollapse: () -> U
                             .clickable(enabled = track.channelUrl != null) {
                                 runCatching {
                                     context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(track.channelUrl)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                                }.onFailure { Toast.makeText(context, "Не удалось открыть ссылку", Toast.LENGTH_SHORT).show() }
+                                }.onFailure { Toast.makeText(context, tr(R.string.link_open_failed), Toast.LENGTH_SHORT).show() }
                             }
                             .padding(horizontal = 4.dp),
                     )
@@ -521,7 +610,7 @@ fun PodcastPlayerScreen(state: PlayerUiState, track: Track?, onCollapse: () -> U
                     )
                     IconButton(onClick = { MusicController.seekBy(-15_000) }, modifier = Modifier.size(56.dp)) {
                         Box(contentAlignment = Alignment.Center) {
-                            Icon(Icons.Rounded.Replay, "Назад 15 секунд", Modifier.size(40.dp))
+                            Icon(Icons.Rounded.Replay, tr(R.string.back_15), Modifier.size(40.dp))
                             Text("15", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 3.dp))
                         }
                     }
@@ -538,7 +627,7 @@ fun PodcastPlayerScreen(state: PlayerUiState, track: Track?, onCollapse: () -> U
                         }
                     }
                     IconButton(onClick = { MusicController.seekBy(30_000) }, modifier = Modifier.size(56.dp)) {
-                        Icon(Icons.Rounded.Forward30, "Вперёд 30 секунд", Modifier.size(40.dp))
+                        Icon(Icons.Rounded.Forward30, tr(R.string.forward_30), Modifier.size(40.dp))
                     }
                     Spacer(Modifier.width(48.dp))
                 }

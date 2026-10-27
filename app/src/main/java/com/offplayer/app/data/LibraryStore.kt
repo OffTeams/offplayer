@@ -77,7 +77,7 @@ object LibraryStore {
             val id3 = if (e.isAudio) Id3Reader.read(fileOf(e)) else null
             val fixed = e.copy(
                 title = if (Id3Reader.looksBroken(e.title)) id3?.title ?: fileTitle(fileOf(e)) else e.title,
-                artist = if (Id3Reader.looksBroken(e.artist)) id3?.artist ?: "Неизвестный исполнитель" else e.artist,
+                artist = if (Id3Reader.looksBroken(e.artist)) id3?.artist ?: MediaRepository.UNKNOWN_ARTIST else e.artist,
                 album = if (Id3Reader.looksBroken(e.album)) id3?.album ?: MediaRepository.UNKNOWN_ALBUM else e.album,
             )
             if (fixed != e) changed = true
@@ -116,8 +116,8 @@ object LibraryStore {
             id = e.id,
             uri = Uri.fromFile(fileOf(e)),
             title = e.title,
-            artist = e.artist,
-            album = e.album,
+            artist = MediaRepository.displayArtist(e.artist),
+            album = MediaRepository.displayAlbum(e.album),
             // Альбомы группируются по названию; отрицательный id не пересекается с MediaStore
             albumId = -(abs(e.album.lowercase().hashCode().toLong()) + 1),
             trackNo = e.trackNo,
@@ -228,7 +228,7 @@ object LibraryStore {
                 file = file.name,
                 title = tag(MediaMetadataRetriever.METADATA_KEY_TITLE) ?: fallbackTitle,
                 artist = tag(MediaMetadataRetriever.METADATA_KEY_ARTIST)
-                    ?: tag(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST) ?: "Неизвестный исполнитель",
+                    ?: tag(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST) ?: MediaRepository.UNKNOWN_ARTIST,
                 album = tag(MediaMetadataRetriever.METADATA_KEY_ALBUM) ?: MediaRepository.UNKNOWN_ALBUM,
                 trackNo = tag(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER)
                     ?.substringBefore('/')?.toIntOrNull() ?: 0,
@@ -242,7 +242,7 @@ object LibraryStore {
                 channelUrl = hints?.channelUrl,
             )
         } catch (t: Throwable) {
-            return Entry(id, isAudio, file.name, fallbackTitle, "Неизвестный исполнитель", MediaRepository.UNKNOWN_ALBUM,
+            return Entry(id, isAudio, file.name, fallbackTitle, MediaRepository.UNKNOWN_ARTIST, MediaRepository.UNKNOWN_ALBUM,
                 0, 0, 0, 0, file.length(), System.currentTimeMillis() / 1000)
         } finally {
             runCatching { r.release() }

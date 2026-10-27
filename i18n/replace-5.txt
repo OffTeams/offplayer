@@ -1,0 +1,175 @@
+FILE ui/settings/SettingsScreen.kt
+- enum class SettingsPage(val title: String) {
++ enum class SettingsPage(@androidx.annotation.StringRes private val res: Int) {
+- ROOT("Настройки"),
++ ROOT(R.string.settings),
+- GENERAL("Общие"),
++ GENERAL(R.string.set_general),
+- MUSIC("Музыкальный плеер"),
++ MUSIC(R.string.set_music_player),
+- VIDEO("Видеоплеер"),
++ VIDEO(R.string.set_video_player),
+- SPONSORBLOCK("SponsorBlock"),
++ SPONSORBLOCK(R.string.sponsorblock),
+- DOWNLOADS("Загрузки"),
++ DOWNLOADS(R.string.tab_downloads),
+- ABOUT("О приложении"),
++ ABOUT(R.string.set_about),
+- Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Назад")
++ Icon(Icons.AutoMirrored.Rounded.ArrowBack, tr(R.string.action_back))
+- Header("Приложение")
++ Header(tr(R.string.set_app))
+- "Общие", "Тема оформления, медиатека")
++ tr(R.string.set_general), tr(R.string.set_general_desc))
+- "Музыкальный плеер", "Обложка, порядок, повтор, кнопки плеера")
++ tr(R.string.set_music_player), tr(R.string.set_music_player_desc))
+- "Видеоплеер", "Фон, скорость, жесты, эпизоды")
++ tr(R.string.set_video_player), tr(R.string.set_video_player_desc))
+- "SponsorBlock", "Что пропускать, о чём спрашивать")
++ tr(R.string.sponsorblock), tr(R.string.set_sb_desc))
+- "Загрузки", "Качество, аудиодорожки, субтитры")
++ tr(R.string.tab_downloads), tr(R.string.set_downloads_desc))
+- Header("Информация")
++ Header(tr(R.string.set_info))
+- "О приложении", "Версия, обновления, место в памяти")
++ tr(R.string.set_about), tr(R.string.set_about_desc))
+- Header("Оформление")
++ Header(tr(R.string.set_appearance))
+- Icons.Rounded.DarkMode, "Тема",
++ Icons.Rounded.DarkMode, tr(R.string.set_theme),
+- Header("Медиатека")
++ Header(tr(R.string.set_library))
+- Header("Обложка")
++ Header(tr(R.string.set_cover))
+- Icons.Rounded.Album, "Вид обложки",
++ Icons.Rounded.Album, tr(R.string.set_cover_style),
+- .map { it to "Сменяемая" }
++ .map { it to tr(R.string.cover_switchable) }
+- if (it == null) "Свайп по обложке в плеере меняет стиль" else "Всегда этот стиль"
++ if (it == null) tr(R.string.cover_switchable_desc) else tr(R.string.cover_fixed_desc)
+- Header("Воспроизведение")
++ Header(tr(R.string.set_playback))
+- Icons.Rounded.Shuffle, "Порядок по умолчанию",
++ Icons.Rounded.Shuffle, tr(R.string.set_default_order),
+- Icons.Rounded.Repeat, "Повтор по умолчанию",
++ Icons.Rounded.Repeat, tr(R.string.set_default_repeat),
+- listOf(0 to "Выключен", 2 to "Очередь по кругу", 1 to "Один трек")
++ listOf(0 to tr(R.string.repeat_mode_off), 2 to tr(R.string.repeat_mode_all), 1 to tr(R.string.repeat_mode_one))
+- Header("Плеер")
++ Header(tr(R.string.set_player))
+- "Таймер сна", "Кнопка таймера сна в плеере"
++ tr(R.string.sleep_timer), tr(R.string.set_sleep_btn_desc)
+- "Добавить в плейлист", "Кнопка добавления текущего трека в плейлист"
++ tr(R.string.add_to_playlist), tr(R.string.set_addpl_btn_desc)
+- Icons.Rounded.Link, "Источник трека",
++ Icons.Rounded.Link, tr(R.string.set_source),
+- "Сохранять канал, с которого скачан трек, и показывать «Сейчас играет трек от:» со ссылкой на него",
++ tr(R.string.set_source_desc),
+- "Пауза при отключении наушников",
++ tr(R.string.set_pause_noisy),
+- "Музыка и видео встают на паузу, когда наушники отключаются",
++ tr(R.string.set_pause_noisy_desc),
+- "Воспроизведение в фоне", "Звук продолжает играть, когда плеер свёрнут"
++ tr(R.string.bg_playback), tr(R.string.bg_playback_desc)
+- "Авто «картинка в картинке»", "Видео уходит в окно поверх других приложений при нажатии «Домой»"
++ tr(R.string.set_auto_pip), tr(R.string.set_auto_pip_desc)
+- Icons.Rounded.Speed, "Скорость по умолчанию",
++ Icons.Rounded.Speed, tr(R.string.set_default_speed),
+- Header("Экран")
++ Header(tr(R.string.set_screen))
+- "Поворот под видео", "Широкие ролики открываются в альбомной ориентации, вертикальные и квадратные — в портретной"
++ tr(R.string.set_rotate), tr(R.string.set_rotate_desc)
+- "Заполнять экран", "Видео без полос по краям, края кадра обрезаются. Переключается двойным нажатием в центре"
++ tr(R.string.set_fill), tr(R.string.set_fill_desc)
+- Header("Жесты")
++ Header(tr(R.string.set_gestures))
+- Icons.Rounded.TouchApp, "Перемотка двойным нажатием",
++ Icons.Rounded.TouchApp, tr(R.string.set_double_tap),
+- .map { it to "$it секунд" }
++ .map { it to tr(R.string.seconds_n, it) }
+- subtitle = "Двойное нажатие у левого края — назад, у правого — вперёд",
++ subtitle = tr(R.string.set_double_tap_desc),
+- Header("Эпизоды")
++ Header(tr(R.string.chapters))
+- "Эпизоды в плеере", "Кнопка и панель «Эпизоды» для видео, скачанных с главами"
++ tr(R.string.set_chapters_player), tr(R.string.set_chapters_player_desc)
+- "SponsorBlock — открытая база отметок рекламы и других вставок в роликах YouTube. " +
++ tr(R.string.set_sb_intro),
+- "Для каждой категории выберите: пропускать автоматически, спрашивать кнопкой «Пропустить» или не трогать. " +
++
+- "Отмеченные отрезки закрашиваются зелёным на полосе перемотки.",
++
+- Header("Категории")
++ Header(tr(R.string.categories))
+- Header("Поведение")
++ Header(tr(R.string.set_behavior))
+- "Плашка после пропуска", "«Пропущено: Спонсор · Вернуть» — можно вернуться к отрезку"
++ tr(R.string.set_sb_notice), tr(R.string.set_sb_notice_desc)
+- "Загружать при скачивании", "Отметки сохраняются вместе с видео и работают офлайн"
++ tr(R.string.set_sb_on_download), tr(R.string.set_sb_on_download_desc)
+- Note("Запрос к SponsorBlock приватный: на сервер уходят только первые символы хеша ID ролика.")
++ Note(tr(R.string.set_sb_privacy))
+- Header("По умолчанию")
++ Header(tr(R.string.set_defaults))
+- Icons.Rounded.AudioFile, "Формат музыки",
++ Icons.Rounded.AudioFile, tr(R.string.audio_format),
+- Icons.Rounded.HighQuality, "Качество видео",
++ Icons.Rounded.HighQuality, tr(R.string.video_quality),
+- Icons.AutoMirrored.Rounded.PlaylistPlay, "Плейлист целиком",
++ Icons.AutoMirrored.Rounded.PlaylistPlay, tr(R.string.set_whole_playlist),
+- "По ссылке на страницу плейлиста сразу скачивать его весь: видео — списком, музыка — миксом",
++ tr(R.string.set_whole_playlist_desc),
+- Header("Видео")
++ Header(tr(R.string.tab_video))
+- "Эпизоды", "Сохранять главы видео для навигации в плеере офлайн"
++ tr(R.string.chapters), tr(R.string.set_save_chapters_desc)
+- "SponsorBlock", "Сохранять отметки рекламы и вставок для пропуска офлайн"
++ tr(R.string.sponsorblock), tr(R.string.set_save_sb_desc)
+- InfoRow(Icons.Rounded.Info, "Версия", "OFFPlayer $version")
++ InfoRow(Icons.Rounded.Info, tr(R.string.version), "OFFPlayer $version")
+- InfoRow(Icons.Rounded.Storage, "Медиатека", "Файлов: $count • ${formatSize(used)}")
++ InfoRow(Icons.Rounded.Storage, tr(R.string.set_library), tr(R.string.files_count, count, formatSize(used)))
+- Note("Плагин загрузки обновляется автоматически при подключении к сети. Обновления приложения проверяются по подписи — установится только версия, подписанная тем же ключом.")
++ Note(tr(R.string.set_about_note))
+- UpdateState.Checking -> "Проверка…"
++ UpdateState.Checking -> tr(R.string.upd_checking)
+- UpdateState.UpToDate -> "Установлена последняя версия"
++ UpdateState.UpToDate -> tr(R.string.upd_up_to_date)
+- is UpdateState.Available -> "Доступна версия ${s.info.version} — нажмите, чтобы обновить"
++ is UpdateState.Available -> tr(R.string.upd_tap_to_update, s.info.version)
+- is UpdateState.Downloading -> "Загрузка ${s.info.version}… ${(s.progress * 100).toInt()}%"
++ is UpdateState.Downloading -> tr(R.string.upd_downloading_v, s.info.version, (s.progress * 100).toInt())
+- is UpdateState.Installing -> "Подтвердите установку"
++ is UpdateState.Installing -> tr(R.string.upd_confirm_short)
+- is UpdateState.NeedsPermission -> "Нужно разрешить установку приложений"
++ is UpdateState.NeedsPermission -> tr(R.string.upd_need_permission_short)
+- UpdateState.Idle -> "Нажмите, чтобы проверить"
++ UpdateState.Idle -> tr(R.string.upd_tap_to_check)
+- Icons.Rounded.SystemUpdate, "Проверить обновления",
++ Icons.Rounded.SystemUpdate, tr(R.string.upd_check),
+- Icons.Rounded.Update, "Проверять автоматически",
++ Icons.Rounded.Update, tr(R.string.upd_auto),
+- "Раз в 12 часов при запуске — новые версии из GitHub",
++ tr(R.string.upd_auto_desc),
+- "Без доступа к медиафайлам контент устройства недоступен"
++ tr(R.string.device_no_permission)
+- Icons.Rounded.PhoneAndroid, "Контент из памяти устройства",
++ Icons.Rounded.PhoneAndroid, tr(R.string.device_content),
+- "Слушать и смотреть ваши собственные аудио и видео, а не только скачанное через OFFPlayer",
++ tr(R.string.device_content_desc),
+- Icons.Rounded.MergeType, "Как показывать",
++ Icons.Rounded.MergeType, tr(R.string.device_how_show),
+- DeviceMediaMode.MIXED to "Вместе со скачанным", DeviceMediaMode.SEPARATE to "Отдельный раздел"
++ DeviceMediaMode.MIXED to tr(R.string.device_mixed), DeviceMediaMode.SEPARATE to tr(R.string.device_separate)
+- if (it == DeviceMediaMode.MIXED) "В общих списках «Треки» и «Все»" else "Раздел «На устройстве», файлы по папкам"
++ if (it == DeviceMediaMode.MIXED) tr(R.string.device_mixed_desc) else tr(R.string.device_separate_desc)
+- Text("Как показывать ваши файлы?")
++ Text(tr(R.string.device_how_show_q))
+- "Вместе со скачанным", "Ваши треки и видео появятся в общих списках «Треки» и «Все» рядом со скачанными"
++ tr(R.string.device_mixed), tr(R.string.device_mixed_long)
+- "Отдельно — «На устройстве»", "Отдельные разделы в «Музыке» и «Видео»: файлы сгруппированы по папкам"
++ tr(R.string.device_separate), tr(R.string.device_separate_long)
+- { Text("Отмена") }
++ { Text(tr(R.string.action_cancel)) }
+- { Text("Закрыть") }
++ { Text(tr(R.string.action_close)) }

@@ -1,5 +1,8 @@
 package com.offplayer.app.ui.music
 
+import com.offplayer.app.tr
+import com.offplayer.app.R
+
 import com.offplayer.app.ui.theme.AppShapes
 import android.os.Build
 import android.widget.Toast
@@ -184,7 +187,7 @@ fun MiniPlayer(state: PlayerUiState, onExpand: () -> Unit) {
             PlayPauseIcon(state.isPlaying, Modifier.size(30.dp))
         }
         IconButton(onClick = MusicController::stop) {
-            Icon(Icons.Rounded.Close, "Завершить прослушивание")
+            Icon(Icons.Rounded.Close, tr(R.string.stop_listening))
         }
     }
 }
@@ -288,7 +291,7 @@ fun NowPlayingScreen(state: PlayerUiState, onCollapse: () -> Unit, onStop: () ->
             Box(Modifier.statusBarsPadding()) {
             // Шапка
             Row(Modifier.fillMaxWidth().height(60.dp).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onCollapse) { Icon(Icons.Rounded.KeyboardArrowDown, "Свернуть", Modifier.size(32.dp)) }
+                IconButton(onClick = onCollapse) { Icon(Icons.Rounded.KeyboardArrowDown, tr(R.string.action_collapse), Modifier.size(32.dp)) }
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                     if (showSource) {
                         NowPlayingSource(track, state.isPlaying, pal)
@@ -296,13 +299,13 @@ fun NowPlayingScreen(state: PlayerUiState, onCollapse: () -> Unit, onStop: () ->
                 }
                 if (showAddPl) {
                     BouncyIconButton(onClick = { state.trackId?.let { UiEvents.addToPlaylist.value = listOf(it) } }) {
-                        Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, "В плейлист")
+                        Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, tr(R.string.to_playlist))
                     }
                 }
                 if (showSleep) SleepTimerButton(state, pal)
                 // Завершить прослушивание — плеер закрывается, очередь очищается
                 BouncyIconButton(onClick = onStop) {
-                    Icon(Icons.Rounded.Close, "Завершить прослушивание")
+                    Icon(Icons.Rounded.Close, tr(R.string.stop_listening))
                 }
             }
             }
@@ -370,9 +373,9 @@ fun NowPlayingScreen(state: PlayerUiState, onCollapse: () -> Unit, onStop: () ->
                         ) {
                             Icon(Icons.AutoMirrored.Rounded.QueueMusic, null, Modifier.size(18.dp), tint = pal.contentSecondary)
                             Spacer(Modifier.width(6.dp))
-                            Text("Очередь • ${state.queue.size}", style = MaterialTheme.typography.labelLarge, color = pal.contentSecondary)
+                            Text(tr(R.string.queue_n, state.queue.size), style = MaterialTheme.typography.labelLarge, color = pal.contentSecondary)
                             Icon(
-                                Icons.Rounded.KeyboardArrowDown, if (queueOpen) "Свернуть очередь" else "Показать очередь",
+                                Icons.Rounded.KeyboardArrowDown, if (queueOpen) tr(R.string.queue_collapse) else tr(R.string.queue_show),
                                 Modifier.size(18.dp).rotate(queueArrow), tint = pal.contentSecondary,
                             )
                         }
@@ -402,7 +405,7 @@ fun NowPlayingScreen(state: PlayerUiState, onCollapse: () -> Unit, onStop: () ->
                         ) {
                             if (canReorder) {
                                 IconButton(onClick = {}, modifier = Modifier.draggableHandle()) {
-                                    Icon(Icons.Rounded.DragHandle, "Перетащить", tint = pal.contentSecondary)
+                                    Icon(Icons.Rounded.DragHandle, tr(R.string.drag), tint = pal.contentSecondary)
                                 }
                             } else {
                                 Spacer(Modifier.width(16.dp))
@@ -436,7 +439,7 @@ fun NowPlayingScreen(state: PlayerUiState, onCollapse: () -> Unit, onStop: () ->
                             }
                             if (!isCurrent) {
                                 IconButton(onClick = { MusicController.removeQueueItem(ke.entry.itemIndex) }) {
-                                    Icon(Icons.Rounded.Close, "Убрать из очереди", tint = pal.contentSecondary)
+                                    Icon(Icons.Rounded.Close, tr(R.string.remove_from_queue), tint = pal.contentSecondary)
                                 }
                             }
                         }
@@ -467,7 +470,7 @@ private fun NowPlayingSource(track: com.offplayer.app.model.Track?, isPlaying: B
         Spacer(Modifier.width(10.dp))
         Column(horizontalAlignment = Alignment.Start) {
             Text(
-                "СЕЙЧАС ИГРАЕТ",
+                tr(R.string.now_playing).uppercase(),
                 style = MaterialTheme.typography.labelSmall,
                 color = pal.contentSecondary,
                 letterSpacing = MaterialTheme.typography.labelSmall.letterSpacing * 1.5f,
@@ -498,7 +501,7 @@ private fun SourceChip(
             .clickable(enabled = online) {
                 runCatching {
                     context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                }.onFailure { Toast.makeText(context, "Не удалось открыть ссылку", Toast.LENGTH_SHORT).show() }
+                }.onFailure { Toast.makeText(context, tr(R.string.link_open_failed), Toast.LENGTH_SHORT).show() }
             }
             .padding(start = 4.dp, end = 10.dp, top = 3.dp, bottom = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -507,7 +510,7 @@ private fun SourceChip(
         SourceAppIcon(url, Modifier.size(20.dp).alpha(alpha))
         Spacer(Modifier.width(6.dp))
         Text(
-            track.channel ?: if (isChannel) "Канал автора" else "Ролик на YouTube",
+            track.channel ?: if (isChannel) tr(R.string.author_channel) else tr(R.string.youtube_video),
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.SemiBold,
             color = pal.content.copy(alpha = alpha),
@@ -518,7 +521,7 @@ private fun SourceChip(
         Spacer(Modifier.width(4.dp))
         Icon(
             if (online) Icons.AutoMirrored.Rounded.OpenInNew else Icons.Rounded.WifiOff,
-            if (online) "Открыть" else "Нет подключения к интернету",
+            if (online) tr(R.string.action_open) else tr(R.string.err_no_internet),
             tint = pal.contentSecondary, modifier = Modifier.size(14.dp),
         )
     }
@@ -645,22 +648,22 @@ private fun ControlsPanel(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            ToggleButton(Icons.Rounded.Shuffle, "Перемешать", state.shuffle, pal.accent, MusicController::toggleShuffle)
+            ToggleButton(Icons.Rounded.Shuffle, tr(R.string.order_shuffle), state.shuffle, pal.accent, MusicController::toggleShuffle)
             BouncyIconButton(onClick = MusicController::previous, size = 60.dp) {
-                Icon(Icons.Rounded.SkipPrevious, "Предыдущий", Modifier.size(42.dp))
+                Icon(Icons.Rounded.SkipPrevious, tr(R.string.previous), Modifier.size(42.dp))
             }
             PlayButton(state.isPlaying, pal)
             BouncyIconButton(onClick = MusicController::next, size = 60.dp) {
-                Icon(Icons.Rounded.SkipNext, "Следующий", Modifier.size(42.dp))
+                Icon(Icons.Rounded.SkipNext, tr(R.string.next), Modifier.size(42.dp))
             }
             ToggleButton(
                 if (state.repeatMode == Player.REPEAT_MODE_ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
-                "Повтор", state.repeatMode != Player.REPEAT_MODE_OFF, pal.accent,
+                tr(R.string.repeat), state.repeatMode != Player.REPEAT_MODE_OFF, pal.accent,
             ) {
                 val msg = when (MusicController.cycleRepeat()) {
-                    Player.REPEAT_MODE_ALL -> "Бесконечный повтор очереди"
-                    Player.REPEAT_MODE_ONE -> "Повтор текущего трека"
-                    else -> "Повтор выключен"
+                    Player.REPEAT_MODE_ALL -> tr(R.string.repeat_all_on)
+                    Player.REPEAT_MODE_ONE -> tr(R.string.repeat_one_on)
+                    else -> tr(R.string.repeat_off)
                 }
                 Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
             }
@@ -838,7 +841,7 @@ internal fun PlayPauseIcon(isPlaying: Boolean, modifier: Modifier = Modifier) {
         },
         label = "playPause",
     ) { playing ->
-        Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (playing) "Пауза" else "Играть", modifier)
+        Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (playing) tr(R.string.action_pause) else tr(R.string.action_play), modifier)
     }
 }
 

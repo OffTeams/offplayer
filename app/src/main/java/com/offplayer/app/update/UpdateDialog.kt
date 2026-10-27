@@ -1,5 +1,8 @@
 package com.offplayer.app.update
 
+import com.offplayer.app.tr
+import com.offplayer.app.R
+
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -48,11 +51,11 @@ fun UpdateDialogHost() {
     AlertDialog(
         onDismissRequest = { if (state !is UpdateState.Downloading) AppUpdater.dismissPrompt(context) },
         icon = { Icon(Icons.Rounded.SystemUpdate, null) },
-        title = { Text("Доступна версия ${info.version}") },
+        title = { Text(tr(R.string.upd_available, info.version)) },
         text = {
             Column {
                 Text(
-                    "Сейчас установлена ${AppUpdater.currentVersion(context)} • размер обновления ${formatSize(info.sizeBytes)}",
+                    tr(R.string.upd_current, AppUpdater.currentVersion(context), formatSize(info.sizeBytes)),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -69,7 +72,7 @@ fun UpdateDialogHost() {
                 when (val s = state) {
                     is UpdateState.Downloading -> {
                         Spacer(Modifier.height(14.dp))
-                        Text("Загрузка… ${(s.progress * 100).toInt()}%", style = MaterialTheme.typography.labelLarge)
+                        Text(tr(R.string.upd_downloading, (s.progress * 100).toInt()), style = MaterialTheme.typography.labelLarge)
                         Spacer(Modifier.height(6.dp))
                         LinearProgressIndicator(
                             progress = { s.progress },
@@ -80,12 +83,12 @@ fun UpdateDialogHost() {
                     }
                     is UpdateState.Installing -> {
                         Spacer(Modifier.height(14.dp))
-                        Text("Подтвердите установку в системном окне", style = MaterialTheme.typography.labelLarge)
+                        Text(tr(R.string.upd_confirm), style = MaterialTheme.typography.labelLarge)
                     }
                     is UpdateState.NeedsPermission -> {
                         Spacer(Modifier.height(14.dp))
                         Text(
-                            "Чтобы установить обновление, разрешите OFFPlayer устанавливать приложения — один раз, в настройках телефона.",
+                            tr(R.string.upd_need_permission),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.error,
                         )
@@ -103,14 +106,14 @@ fun UpdateDialogHost() {
                 is UpdateState.Downloading, is UpdateState.Installing -> Unit
                 is UpdateState.NeedsPermission -> TextButton(onClick = {
                     context.startActivity(AppUpdater.permissionIntent(context))
-                }) { Text("Разрешить") }
-                is UpdateState.Error -> TextButton(onClick = { AppUpdater.download(context, info) }) { Text("Повторить") }
-                else -> TextButton(onClick = { AppUpdater.download(context, info) }) { Text("Обновить") }
+                }) { Text(tr(R.string.action_allow)) }
+                is UpdateState.Error -> TextButton(onClick = { AppUpdater.download(context, info) }) { Text(tr(R.string.action_retry)) }
+                else -> TextButton(onClick = { AppUpdater.download(context, info) }) { Text(tr(R.string.action_update)) }
             }
         },
         dismissButton = {
             if (state !is UpdateState.Downloading) {
-                TextButton(onClick = { AppUpdater.dismissPrompt(context) }) { Text("Позже") }
+                TextButton(onClick = { AppUpdater.dismissPrompt(context) }) { Text(tr(R.string.action_later)) }
             }
         },
     )

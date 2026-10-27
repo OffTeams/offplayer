@@ -1,5 +1,8 @@
 package com.offplayer.app.video
 
+import com.offplayer.app.tr
+import com.offplayer.app.R
+
 import android.content.ComponentName
 import android.content.Context
 import android.net.Uri
@@ -262,7 +265,7 @@ object VideoController {
         context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
             if (c.moveToFirst()) c.getString(0)?.substringBeforeLast('.') else null
         }
-    }.getOrNull() ?: uri.lastPathSegment ?: "Видео"
+    }.getOrNull() ?: uri.lastPathSegment ?: tr(R.string.tab_video)
 
     private fun videoItem(mediaId: String, uri: Uri, title: String): MediaItem = MediaItem.Builder()
         .setMediaId(mediaId)

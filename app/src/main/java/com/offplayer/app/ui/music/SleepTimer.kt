@@ -1,5 +1,8 @@
 package com.offplayer.app.ui.music
 
+import com.offplayer.app.tr
+import com.offplayer.app.R
+
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -106,7 +109,7 @@ fun SleepTimerButton(state: PlayerUiState, pal: PlayerPalette) {
 
     Box(contentAlignment = Alignment.Center) {
         BouncyIconButton(onClick = { open = true }) {
-            Icon(Icons.Rounded.Bedtime, "Таймер сна", tint = tint, modifier = Modifier.scale(if (active) pulse else 1f))
+            Icon(Icons.Rounded.Bedtime, tr(R.string.sleep_timer), tint = tint, modifier = Modifier.scale(if (active) pulse else 1f))
         }
         AnimatedVisibility(
             visible = active,
@@ -118,7 +121,7 @@ fun SleepTimerButton(state: PlayerUiState, pal: PlayerPalette) {
         ) {
             val minutes = ((state.sleepAtMs ?: now) - now).coerceAtLeast(0L).let { (it + 59_999) / 60_000 }
             Text(
-                "$minutes мин",
+                tr(R.string.min_short, minutes),
                 fontSize = 9.sp,
                 fontWeight = FontWeight.Bold,
                 color = pal.base,
@@ -164,9 +167,9 @@ private fun SleepTimerSheet(state: PlayerUiState, pal: PlayerPalette, now: Long,
                 ) { Icon(Icons.Rounded.Bedtime, null, tint = pal.accent) }
                 Spacer(Modifier.width(14.dp))
                 Column {
-                    Text("Таймер сна", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(tr(R.string.sleep_timer), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     Text(
-                        "Музыка плавно затихнет и остановится",
+                        tr(R.string.sleep_desc),
                         style = MaterialTheme.typography.bodySmall,
                         color = pal.contentSecondary,
                     )
@@ -192,7 +195,7 @@ private fun SleepTimerSheet(state: PlayerUiState, pal: PlayerPalette, now: Long,
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text(formatDuration(remaining), fontSize = 34.sp, fontWeight = FontWeight.Bold)
                                 Text(
-                                    if (state.sleepEndOfTrack) "до конца трека" else "осталось",
+                                    if (state.sleepEndOfTrack) tr(R.string.until_track_end_lc) else tr(R.string.remaining),
                                     style = MaterialTheme.typography.labelMedium,
                                     color = pal.contentSecondary,
                                 )
@@ -201,11 +204,11 @@ private fun SleepTimerSheet(state: PlayerUiState, pal: PlayerPalette, now: Long,
                         Spacer(Modifier.height(16.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             Pill(
-                                text = "+5 мин", icon = Icons.Rounded.Add, selected = false, pal = pal,
+                                text = tr(R.string.plus_5_min), icon = Icons.Rounded.Add, selected = false, pal = pal,
                                 onClick = { MusicController.extendSleepTimer(5) },
                             )
                             Pill(
-                                text = "Отключить", icon = Icons.Rounded.Close, selected = true, pal = pal,
+                                text = tr(R.string.turn_off), icon = Icons.Rounded.Close, selected = true, pal = pal,
                                 onClick = { MusicController.setSleepTimer(null) },
                             )
                         }
@@ -218,7 +221,7 @@ private fun SleepTimerSheet(state: PlayerUiState, pal: PlayerPalette, now: Long,
 
             // Быстрый выбор
             Text(
-                if (active) "Изменить время" else "Остановить через",
+                if (active) tr(R.string.change_time) else tr(R.string.stop_after),
                 style = MaterialTheme.typography.labelLarge,
                 color = pal.contentSecondary,
                 modifier = Modifier
@@ -233,14 +236,14 @@ private fun SleepTimerSheet(state: PlayerUiState, pal: PlayerPalette, now: Long,
             ) {
                 listOf(10, 15, 30, 45, 60, 90).forEach { m ->
                     Pill(
-                        text = "$m мин",
+                        text = tr(R.string.min_short, m),
                         selected = active && !state.sleepEndOfTrack && totalMin == m,
                         pal = pal,
                         onClick = { MusicController.setSleepTimer(m) },
                     )
                 }
                 Pill(
-                    text = "До конца трека",
+                    text = tr(R.string.until_track_end),
                     selected = active && state.sleepEndOfTrack,
                     pal = pal,
                     onClick = { MusicController.setSleepAtEndOfTrack() },
@@ -250,8 +253,8 @@ private fun SleepTimerSheet(state: PlayerUiState, pal: PlayerPalette, now: Long,
             // Своё время
             Spacer(Modifier.height(22.dp))
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("Своё время", style = MaterialTheme.typography.labelLarge, color = pal.contentSecondary, modifier = Modifier.weight(1f))
-                Text("${custom.roundToInt()} мин", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(tr(R.string.custom_time), style = MaterialTheme.typography.labelLarge, color = pal.contentSecondary, modifier = Modifier.weight(1f))
+                Text(tr(R.string.min_short, custom.roundToInt()), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             }
             Slider(
                 value = custom,
@@ -277,7 +280,7 @@ private fun SleepTimerSheet(state: PlayerUiState, pal: PlayerPalette, now: Long,
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    "Запустить на ${custom.roundToInt()} мин",
+                    tr(R.string.start_for_min, custom.roundToInt()),
                     color = pal.base,
                     fontWeight = FontWeight.SemiBold,
                     style = MaterialTheme.typography.titleSmall,

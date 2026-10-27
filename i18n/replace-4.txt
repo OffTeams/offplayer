@@ -1,0 +1,250 @@
+FILE ui/video/VideoScreen.kt
+- enum class VideoSort(val label: String) { NEWEST("Сначала новые"), OLDEST("Сначала старые"), TITLE("По названию"), LONGEST("Самые длинные"), LARGEST("Самые большие") }
++ enum class VideoSort(@androidx.annotation.StringRes private val res: Int) { NEWEST(R.string.vsort_newest), OLDEST(R.string.vsort_oldest), TITLE(R.string.psort_title), LONGEST(R.string.vsort_longest), LARGEST(R.string.vsort_largest); val label: String get() = tr(res) }
+- enum class VideoSection(val label: String) { ALL("Все"), LISTS("Списки"), CATEGORIES("Категории"), DEVICE("На устройстве") }
++ enum class VideoSection(@androidx.annotation.StringRes private val res: Int) { ALL(R.string.all), LISTS(R.string.lists), CATEGORIES(R.string.categories), DEVICE(R.string.sec_device); val label: String get() = tr(res) }
+- Text("Поиск видео")
++ Text(tr(R.string.search_video))
+- Text("Видео", fontWeight
++ Text(tr(R.string.tab_video), fontWeight
+- Icons.Rounded.Search, "Поиск")
++ Icons.Rounded.Search, tr(R.string.search))
+- FolderChip("Все папки",
++ FolderChip(tr(R.string.all_folders),
+- Icons.Rounded.VideoLibrary, "Видео пока нет",
++ Icons.Rounded.VideoLibrary, tr(R.string.no_videos),
+- "Скачайте видео во вкладке «Загрузки» или включите в настройках загрузок контент из памяти устройства.",
++ tr(R.string.no_videos_desc),
+- "На устройстве нет видео", "Видео из памяти телефона появятся здесь, сгруппированные по папкам.")
++ tr(R.string.no_device_videos), tr(R.string.no_device_videos_desc))
+- Icon(Icons.Rounded.MoreVert, "Ещё", tint
++ Icon(Icons.Rounded.MoreVert, tr(R.string.more), tint
+- Text("Добавить в список")
++ Text(tr(R.string.add_to_list))
+- Text("Категории…")
++ Text(tr(R.string.categories_ellipsis))
+- "Обновить SponsorBlock" else "Загрузить SponsorBlock"
++ tr(R.string.sb_refresh) else tr(R.string.sb_load)
+- "Отрезков: ${m.segments.size}",
++ tr(R.string.sb_segments_n, m.segments.size),
+- "Удалить с устройства" else "Удалить", color
++ tr(R.string.delete_from_device) else tr(R.string.action_delete), color
+- Icons.AutoMirrored.Rounded.Sort, "Сортировка")
++ Icons.AutoMirrored.Rounded.Sort, tr(R.string.sorting))
+FILE ui/video/VideoLibrary.kt
+- fun videosCount(n: Int) = plural(n, "видео", "видео", "видео")
++ fun videosCount(n: Int) = trn(R.plurals.videos, n)
+- return if (min >= 60) "${min / 60} ч ${min % 60} мин" else plural(min, "минута", "минуты", "минут")
++ return if (min >= 60) tr(R.string.hours_minutes, min / 60, min % 60) else trn(R.plurals.minutes, min)
+- createLabel = "Новый список",
++ createLabel = tr(R.string.new_list),
+- emptyTitle = "Списков пока нет",
++ emptyTitle = tr(R.string.no_lists),
+- emptyText = "Создайте список или скачайте плейлист YouTube целиком — он сохранится здесь как список.",
++ emptyText = tr(R.string.no_lists_desc),
+- "Список • ${totalVideoDuration(present)}"
++ tr(R.string.list) + " • ${totalVideoDuration(present)}"
+- TextInputDialog("Новый список", "", "Создать",
++ TextInputDialog(tr(R.string.new_list), "", tr(R.string.action_create),
+- createLabel = "Новая категория",
++ createLabel = tr(R.string.new_category),
+- emptyTitle = "Категорий пока нет",
++ emptyTitle = tr(R.string.no_categories),
+- emptyText = "Категории — тематические метки: «Обучение», «Музыкальные клипы»… Одно видео может быть в нескольких.",
++ emptyText = tr(R.string.no_categories_desc),
+- "Категория • ${totalVideoDuration(inCat)}"
++ tr(R.string.category) + " • ${totalVideoDuration(inCat)}"
+- TextInputDialog("Новая категория", "", "Создать",
++ TextInputDialog(tr(R.string.new_category), "", tr(R.string.action_create),
+- deleteLabel = "Удалить список",
++ deleteLabel = tr(R.string.delete_list),
+- CollectionHeader(items, list.name, "Список",
++ CollectionHeader(items, list.name, tr(R.string.list),
+- removeLabel = "Убрать из списка",
++ removeLabel = tr(R.string.remove_from_list),
+- TextInputDialog("Переименовать список", list.name, "Сохранить",
++ TextInputDialog(tr(R.string.rename_list), list.name, tr(R.string.action_save),
+- ConfirmDelete("Удалить список «${list.name}»?",
++ ConfirmDelete(tr(R.string.delete_list_q, list.name),
+- deleteLabel = "Удалить категорию",
++ deleteLabel = tr(R.string.delete_category),
+- CollectionHeader(items, cat.name, "Категория",
++ CollectionHeader(items, cat.name, tr(R.string.category),
+- removeLabel = "Убрать из категории",
++ removeLabel = tr(R.string.remove_from_category),
+- TextInputDialog("Переименовать категорию", cat.name, "Сохранить",
++ TextInputDialog(tr(R.string.rename_category), cat.name, tr(R.string.action_save),
+- ConfirmDelete("Удалить категорию «${cat.name}»?",
++ ConfirmDelete(tr(R.string.delete_category_q, cat.name),
+- Text("Смотреть всё")
++ Text(tr(R.string.watch_all))
+- Text("Перемешать")
++ Text(tr(R.string.order_shuffle))
+- Text("Добавить видео")
++ Text(tr(R.string.add_videos))
+- "Удерживайте видео, чтобы перетащить",
++ tr(R.string.hold_to_drag),
+- Icons.Rounded.PlayArrow, "Сейчас играет",
++ Icons.Rounded.PlayArrow, tr(R.string.now_playing),
+- Icon(Icons.Rounded.MoreVert, "Ещё", tint
++ Icon(Icons.Rounded.MoreVert, tr(R.string.more), tint
+- "Удалить с устройства" else "Удалить", color
++ tr(R.string.delete_from_device) else tr(R.string.action_delete), color
+- Icon(Icons.Rounded.MoreVert, "Ещё") }
++ Icon(Icons.Rounded.MoreVert, tr(R.string.more)) }
+- Text("Переименовать")
++ Text(tr(R.string.rename))
+- Text("Удалить вместе с видео", color
++ Text(tr(R.string.delete_with_videos), color
+- Text("Сами видео останутся на устройстве.")
++ Text(tr(R.string.videos_stay))
+- { Text("Удалить") }
++ { Text(tr(R.string.action_delete)) }
+- { Text("Отмена") }
++ { Text(tr(R.string.action_cancel)) }
+- Text("Добавить в список")
++ Text(tr(R.string.add_to_list))
+- "Добавлено в «${l.name}»"
++ tr(R.string.added_to, l.name)
+- Text("Новый список")
++ Text(tr(R.string.new_list))
+- "Создан список «${l.name}»"
++ tr(R.string.list_created, l.name)
+- }) { Text("Создать") }
++ }) { Text(tr(R.string.action_create)) }
+- Text("Категории") }
++ Text(tr(R.string.categories)) }
+- Text("Новая категория")
++ Text(tr(R.string.new_category))
+- newName = "" }) { Text("Создать") }
++ newName = "" }) { Text(tr(R.string.action_create)) }
+- Text("Готово")
++ Text(tr(R.string.done))
+- Text("Выбрано: ${selected.size}")
++ Text(trn(R.plurals.tracks_selected, selected.size))
+- Icon(Icons.Rounded.Close, "Закрыть")
++ Icon(Icons.Rounded.Close, tr(R.string.action_close))
+- Text("Добавить")
++ Text(tr(R.string.action_add))
+- Text("Поиск") }
++ Text(tr(R.string.search)) }
+- "Не удалось определить ID ролика YouTube"
++ tr(R.string.sb_no_id)
+- "Нет подключения к SponsorBlock"
++ tr(R.string.sb_no_connection)
+- if (segments.isEmpty()) "В базе SponsorBlock нет отрезков для этого видео"
++ if (segments.isEmpty()) tr(R.string.sb_none_found)
+- else "Сохранено отрезков: ${segments.size} — будут пропускаться офлайн"
++ else tr(R.string.sb_saved_n, segments.size)
+FILE ui/video/VideoOverlays.kt
+- Text("Эпизоды", color
++ Text(tr(R.string.chapters), color
+- "${current + 1} из ${chapters.size}",
++ tr(R.string.n_of_m, current + 1, chapters.size),
+- Icon(Icons.Rounded.Close, "Закрыть", tint = Color.White.copy(alpha = 0.85f), modifier
++ Icon(Icons.Rounded.Close, tr(R.string.action_close), tint = Color.White.copy(alpha = 0.85f), modifier
+- Text("${currentIndex + 1} из ${queue.size}", color
++ Text(tr(R.string.n_of_m, currentIndex + 1, queue.size), color
+- Text("${hint.seconds} с", color
++ Text(tr(R.string.sec_short, hint.seconds), color
+- if (hint.fill) "Заполнение экрана" else "Исходный размер",
++ if (hint.fill) tr(R.string.fill_screen) else tr(R.string.original_size),
+- "Настройки", color = Color.White,
++ tr(R.string.settings), color = Color.White,
+- Icon(Icons.Rounded.Close, "Закрыть", tint = Color.White.copy(alpha = 0.85f)) }
++ Icon(Icons.Rounded.Close, tr(R.string.action_close), tint = Color.White.copy(alpha = 0.85f)) }
+- "Скорость", color
++ tr(R.string.speed), color
+- "Аудиодорожка", color
++ tr(R.string.audio_track), color
+- ?: "Дорожка ${i + 1}"
++ ?: tr(R.string.track_n, i + 1)
+- if (i == 0) "$name · оригинал" else name,
++ if (i == 0) tr(R.string.track_original, name) else name,
+- title = "Воспроизведение в фоне",
++ title = tr(R.string.bg_playback),
+- subtitle = "Звук продолжает играть, когда плеер свёрнут",
++ subtitle = tr(R.string.bg_playback_desc),
+- title = "Картинка в картинке",
++ title = tr(R.string.pip),
+- subtitle = "Видео в маленьком окне поверх других приложений",
++ subtitle = tr(R.string.pip_desc),
+- Text("Пропущено: ${SponsorBlock.label(segment.category)}", color
++ Text(tr(R.string.sb_skipped, SponsorBlock.label(segment.category)), color
+- Text("Вернуть", color
++ Text(tr(R.string.sb_undo), color
+- Text("Пропустить: ${SponsorBlock.label(segment.category)}", color
++ Text(tr(R.string.sb_skip_btn, SponsorBlock.label(segment.category)), color
+FILE ui/video/VideoPlayer.kt
+- Icons.Rounded.KeyboardArrowDown, "Закрыть", tint
++ Icons.Rounded.KeyboardArrowDown, tr(R.string.action_collapse), tint
+- Icons.AutoMirrored.Rounded.PlaylistPlay, "Список", tint
++ Icons.AutoMirrored.Rounded.PlaylistPlay, tr(R.string.list), tint
+- Icons.AutoMirrored.Rounded.FormatListBulleted, "Эпизоды", tint
++ Icons.AutoMirrored.Rounded.FormatListBulleted, tr(R.string.chapters), tint
+- Icons.Rounded.Settings, "Настройки плеера", tint
++ Icons.Rounded.Settings, tr(R.string.player_settings), tint
+- Icons.Rounded.Close, "Закрыть видео", tint
++ Icons.Rounded.Close, tr(R.string.close_video), tint
+- Icons.Rounded.ScreenRotation, "Повернуть экран", tint
++ Icons.Rounded.ScreenRotation, tr(R.string.rotate_screen), tint
+- ui.queueTitle ?: "Очередь",
++ ui.queueTitle ?: tr(R.string.queue),
+FILE ui/video/VideoMiniPlayer.kt
+- if (state.isPlaying) "Видео играет" else "Видео на паузе",
++ if (state.isPlaying) tr(R.string.video_playing) else tr(R.string.video_paused),
+- if (state.isPlaying) "Пауза" else "Играть",
++ if (state.isPlaying) tr(R.string.action_pause) else tr(R.string.action_play),
+- Icon(Icons.Rounded.Close, "Закрыть видео")
++ Icon(Icons.Rounded.Close, tr(R.string.close_video))
+FILE ui/podcast/Podcasts.kt
+- enum class PodcastKind(val label: String, val plural: String, val colors: List<Color>) {
++ enum class PodcastKind(@androidx.annotation.StringRes private val labelRes: Int, @androidx.annotation.StringRes private val pluralRes: Int, val colors: List<Color>) {
+- TALK("Разговорный подкаст", "Разговорные",
++ TALK(R.string.pk_talk, R.string.pk_talk_pl,
+- AUDIOBOOK("Аудиокнига", "Аудиокниги",
++ AUDIOBOOK(R.string.pk_audiobook, R.string.pk_audiobook_pl,
+- NEWS("Новости", "Новости",
++ NEWS(R.string.pk_news, R.string.pk_news,
+- TECH("Техника", "Техника",
++ TECH(R.string.pk_tech, R.string.pk_tech,
+- GAMING("Игры", "Игры",
++ GAMING(R.string.pk_games, R.string.pk_games,
+- Text("Поиск подкастов")
++ Text(tr(R.string.search_podcasts))
+- Text("Подкасты", fontWeight
++ Text(tr(R.string.tab_podcasts), fontWeight
+- Icons.Rounded.Search, "Поиск")
++ Icons.Rounded.Search, tr(R.string.search))
+- Icons.Rounded.Podcasts, "Подкастов пока нет",
++ Icons.Rounded.Podcasts, tr(R.string.no_podcasts),
+- "Скачайте длинное аудио во вкладке «Загрузки» и сохраните его как подкаст — оно появится здесь.",
++ tr(R.string.no_podcasts_desc),
+- CategoryChip("Все", filter
++ CategoryChip(tr(R.string.all), filter
+- listened >= 0.97f -> "Прослушано"
++ listened >= 0.97f -> tr(R.string.listened)
+- positionMs > 0 -> "Осталось ${formatDuration(track.durationMs - positionMs)}"
++ positionMs > 0 -> tr(R.string.left_time, formatDuration(track.durationMs - positionMs))
+- Icon(Icons.Rounded.MoreVert, "Ещё", tint
++ Icon(Icons.Rounded.MoreVert, tr(R.string.more), tint
+- Text("Категория…")
++ Text(tr(R.string.category_ellipsis))
+- Text("Удалить", color
++ Text(tr(R.string.action_delete), color
+- title = { Text("Категория") },
++ title = { Text(tr(R.string.category)) },
+- { Text("Закрыть") }
++ { Text(tr(R.string.action_close)) }
+- Icon(Icons.Rounded.Replay, "Назад 15 секунд") }
++ Icon(Icons.Rounded.Replay, tr(R.string.back_15)) }
+- Icon(Icons.Rounded.Close, "Завершить прослушивание") }
++ Icon(Icons.Rounded.Close, tr(R.string.stop_listening)) }
+- Icons.Rounded.KeyboardArrowDown, "Свернуть", Modifier
++ Icons.Rounded.KeyboardArrowDown, tr(R.string.action_collapse), Modifier
+- "Не удалось открыть ссылку"
++ tr(R.string.link_open_failed)
+- Icon(Icons.Rounded.Replay, "Назад 15 секунд", Modifier
++ Icon(Icons.Rounded.Replay, tr(R.string.back_15), Modifier
+- Icon(Icons.Rounded.Forward30, "Вперёд 30 секунд", Modifier
++ Icon(Icons.Rounded.Forward30, tr(R.string.forward_30), Modifier

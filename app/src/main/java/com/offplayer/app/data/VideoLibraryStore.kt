@@ -1,5 +1,8 @@
 package com.offplayer.app.data
 
+import com.offplayer.app.tr
+import com.offplayer.app.R
+
 import android.content.Context
 import com.offplayer.app.download.DownloadResult
 import com.offplayer.app.download.Downloader
@@ -43,7 +46,7 @@ object VideoLibraryStore {
     // ---- Списки ----
 
     fun createList(name: String, videoIds: List<Long> = emptyList(), sourceUrl: String? = null): VideoList {
-        val l = VideoList(UUID.randomUUID().toString(), name.trim().ifEmpty { "Новый список" }, videoIds.distinct(), System.currentTimeMillis(), sourceUrl)
+        val l = VideoList(UUID.randomUUID().toString(), name.trim().ifEmpty { tr(R.string.new_list) }, videoIds.distinct(), System.currentTimeMillis(), sourceUrl)
         _lists.update { it + l }
         save()
         return l
@@ -67,7 +70,7 @@ object VideoLibraryStore {
     // ---- Категории ----
 
     fun createCategory(name: String, videoIds: Set<Long> = emptySet()): VideoCategory {
-        val c = VideoCategory(UUID.randomUUID().toString(), name.trim().ifEmpty { "Новая категория" }, videoIds, System.currentTimeMillis())
+        val c = VideoCategory(UUID.randomUUID().toString(), name.trim().ifEmpty { tr(R.string.new_category) }, videoIds, System.currentTimeMillis())
         _categories.update { it + c }
         save()
         return c

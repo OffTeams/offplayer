@@ -75,7 +75,7 @@
         <activity
             android:name=".ShareActivity"
             android:exported="true"
-            android:label="Скачать в OFFPlayer"
+            android:label="@string/share_label"
             android:theme="@style/Theme.OffPlayer.Translucent"
             android:excludeFromRecents="true"
             android:taskAffinity=""

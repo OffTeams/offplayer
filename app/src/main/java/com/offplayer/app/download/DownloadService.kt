@@ -1,5 +1,7 @@
 package com.offplayer.app.download
 
+import com.offplayer.app.tr
+
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -42,10 +44,10 @@ class DownloadService : Service() {
         super.onCreate()
         val nm = getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(
-            NotificationChannel(CHANNEL, "Загрузки", NotificationManager.IMPORTANCE_LOW)
+            NotificationChannel(CHANNEL, tr(R.string.tab_downloads), NotificationManager.IMPORTANCE_LOW)
         )
         nm.createNotificationChannel(
-            NotificationChannel(CHANNEL_DONE, "Загрузка завершена", NotificationManager.IMPORTANCE_DEFAULT).apply {
+            NotificationChannel(CHANNEL_DONE, tr(R.string.download_finished), NotificationManager.IMPORTANCE_DEFAULT).apply {
                 setSound(null, null)
             }
         )
@@ -53,7 +55,7 @@ class DownloadService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         ServiceCompat.startForeground(
-            this, NOTIFICATION_ID, buildNotification("Подготовка…", 0f, true),
+            this, NOTIFICATION_ID, buildNotification(tr(R.string.preparing), 0f, true),
             if (Build.VERSION.SDK_INT >= 29) ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC else 0,
         )
         if (worker?.isActive != true) {
@@ -79,7 +81,7 @@ class DownloadService : Service() {
                         Downloader.tasks.value.firstOrNull { it.id == next.id }?.let { notifyFinished(it) }
                     }
                 } catch (t: Throwable) {
-                    Downloader.failPending("Ошибка yt-dlp: ${t.message?.take(150)}")
+                    Downloader.failPending(tr(R.string.ytdlp_error, t.message?.take(150) ?: ""))
                 } finally {
                     ticker.cancel()
                     releaseLocks()
@@ -95,7 +97,7 @@ class DownloadService : Service() {
         NotificationCompat.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_download)
             .setContentTitle(title)
-            .setContentText(if (indeterminate) "Загрузка…" else "${(progress * 100).toInt()}%")
+            .setContentText(if (indeterminate) tr(R.string.downloading) else "${(progress * 100).toInt()}%")
             .setProgress(100, (progress * 100).toInt(), indeterminate)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
@@ -117,7 +119,7 @@ class DownloadService : Service() {
             UiEvents.downloadDone.tryEmit(
                 DownloadDoneEvent(
                     title = task.title ?: task.url,
-                    message = if (done) task.message ?: "Загрузка завершена" else task.message ?: "Не удалось скачать",
+                    message = if (done) task.message ?: tr(R.string.download_finished) else task.message ?: tr(R.string.download_failed),
                     success = done,
                     result = result.takeIf { done },
                 )
@@ -139,7 +141,7 @@ class DownloadService : Service() {
         val largeIcon = if (done && result != null) runCatching { previewFor(result) }.getOrNull() else null
         val n = NotificationCompat.Builder(this, CHANNEL_DONE)
             .setSmallIcon(R.drawable.ic_stat_download)
-            .setContentTitle(if (done) task.title ?: "Загрузка завершена" else "Не удалось скачать")
+            .setContentTitle(if (done) task.title ?: tr(R.string.download_finished) else tr(R.string.download_failed))
             .setContentText(task.message ?: task.url)
             .setLargeIcon(largeIcon)
             .setAutoCancel(true)

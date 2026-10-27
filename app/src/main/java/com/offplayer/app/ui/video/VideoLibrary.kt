@@ -1,5 +1,9 @@
 package com.offplayer.app.ui.video
 
+import com.offplayer.app.tr
+import com.offplayer.app.trn
+import com.offplayer.app.R
+
 import android.content.Context
 import android.widget.Toast
 import androidx.compose.animation.core.animateDpAsState
@@ -104,11 +108,11 @@ import com.offplayer.app.ui.DeleteRequest
 import com.offplayer.app.ui.UiEvents
 import sh.calvin.reorderable.rememberReorderableLazyListState
 
-fun videosCount(n: Int) = plural(n, "видео", "видео", "видео")
+fun videosCount(n: Int) = trn(R.plurals.videos, n)
 
 private fun totalVideoDuration(videos: List<Video>): String {
     val min = (videos.sumOf { it.durationMs } / 60_000).toInt()
-    return if (min >= 60) "${min / 60} ч ${min % 60} мин" else plural(min, "минута", "минуты", "минут")
+    return if (min >= 60) tr(R.string.hours_minutes, min / 60, min % 60) else trn(R.plurals.minutes, min)
 }
 
 // ---------- Разделы «Списки» и «Категории» ----------
@@ -121,19 +125,19 @@ fun VideoListsSection(query: String, onOpen: (String) -> Unit) {
     val shown = remember(lists, query) { lists.filter { query.isBlank() || it.name.contains(query, true) } }
 
     CollectionList(
-        createLabel = "Новый список",
+        createLabel = tr(R.string.new_list),
         onCreate = { creating = true },
-        emptyTitle = "Списков пока нет",
-        emptyText = "Создайте список или скачайте плейлист YouTube целиком — он сохранится здесь как список.",
+        emptyTitle = tr(R.string.no_lists),
+        emptyText = tr(R.string.no_lists_desc),
         isEmpty = shown.isEmpty(),
     ) {
         items(shown, key = { it.id }) { l ->
             val present = remember(l, videos) { l.videoIds.mapNotNull { MediaRepository.video(it) } }
-            CollectionRow(present.firstOrNull(), l.name, "Список • ${totalVideoDuration(present)}", present.size, Icons.AutoMirrored.Rounded.PlaylistPlay) { onOpen(l.id) }
+            CollectionRow(present.firstOrNull(), l.name, tr(R.string.list) + " • ${totalVideoDuration(present)}", present.size, Icons.AutoMirrored.Rounded.PlaylistPlay) { onOpen(l.id) }
         }
     }
     if (creating) {
-        TextInputDialog("Новый список", "", "Создать", onConfirm = { VideoLibraryStore.createList(it) }, onDismiss = { creating = false })
+        TextInputDialog(tr(R.string.new_list), "", tr(R.string.action_create), onConfirm = { VideoLibraryStore.createList(it) }, onDismiss = { creating = false })
     }
 }
 
@@ -145,19 +149,19 @@ fun VideoCategoriesSection(query: String, onOpen: (String) -> Unit) {
     val shown = remember(categories, query) { categories.filter { query.isBlank() || it.name.contains(query, true) } }
 
     CollectionList(
-        createLabel = "Новая категория",
+        createLabel = tr(R.string.new_category),
         onCreate = { creating = true },
-        emptyTitle = "Категорий пока нет",
-        emptyText = "Категории — тематические метки: «Обучение», «Музыкальные клипы»… Одно видео может быть в нескольких.",
+        emptyTitle = tr(R.string.no_categories),
+        emptyText = tr(R.string.no_categories_desc),
         isEmpty = shown.isEmpty(),
     ) {
         items(shown, key = { it.id }) { c ->
             val inCat = remember(c, videos) { c.videoIds.mapNotNull { MediaRepository.video(it) }.sortedByDescending { it.dateAdded } }
-            CollectionRow(inCat.firstOrNull(), c.name, "Категория • ${totalVideoDuration(inCat)}", inCat.size, Icons.Rounded.Label) { onOpen(c.id) }
+            CollectionRow(inCat.firstOrNull(), c.name, tr(R.string.category) + " • ${totalVideoDuration(inCat)}", inCat.size, Icons.Rounded.Label) { onOpen(c.id) }
         }
     }
     if (creating) {
-        TextInputDialog("Новая категория", "", "Создать", onConfirm = { VideoLibraryStore.createCategory(it) }, onDismiss = { creating = false })
+        TextInputDialog(tr(R.string.new_category), "", tr(R.string.action_create), onConfirm = { VideoLibraryStore.createCategory(it) }, onDismiss = { creating = false })
     }
 }
 
@@ -315,7 +319,7 @@ fun VideoListScreen(id: String, onBack: () -> Unit) {
             CollectionMenu(
                 onRename = { renaming = true },
                 onDelete = { deleting = true },
-                deleteLabel = "Удалить список",
+                deleteLabel = tr(R.string.delete_list),
                 onDeleteWithVideos = {
                     UiEvents.delete.value = DeleteRequest.videos(items, list.name, after = { VideoLibraryStore.deleteList(id) })
                 },
@@ -323,7 +327,7 @@ fun VideoListScreen(id: String, onBack: () -> Unit) {
         }
         LazyColumn(Modifier.fillMaxSize(), state = listState) {
             item(key = "header") {
-                CollectionHeader(items, list.name, "Список", onAdd = { adding = true }, hint = items.size > 1)
+                CollectionHeader(items, list.name, tr(R.string.list), onAdd = { adding = true }, hint = items.size > 1)
             }
             itemsIndexed(items, key = { _, v -> v.id }) { i, v ->
                 ReorderableItem(reorderState, key = v.id) { isDragging ->
@@ -339,7 +343,7 @@ fun VideoListScreen(id: String, onBack: () -> Unit) {
                             index = i + 1,
                             isCurrent = v.id == ui.videoId,
                             onClick = { VideoController.play(items, i, listTitle = list.name) },
-                            removeLabel = "Убрать из списка",
+                            removeLabel = tr(R.string.remove_from_list),
                             onRemove = { VideoLibraryStore.removeFromList(id, v.id) },
                         )
                     }
@@ -348,8 +352,8 @@ fun VideoListScreen(id: String, onBack: () -> Unit) {
         }
     }
 
-    if (renaming) TextInputDialog("Переименовать список", list.name, "Сохранить", onConfirm = { VideoLibraryStore.renameList(id, it) }, onDismiss = { renaming = false })
-    if (deleting) ConfirmDelete("Удалить список «${list.name}»?", onConfirm = { VideoLibraryStore.deleteList(id); onBack() }, onDismiss = { deleting = false })
+    if (renaming) TextInputDialog(tr(R.string.rename_list), list.name, tr(R.string.action_save), onConfirm = { VideoLibraryStore.renameList(id, it) }, onDismiss = { renaming = false })
+    if (deleting) ConfirmDelete(tr(R.string.delete_list_q, list.name), onConfirm = { VideoLibraryStore.deleteList(id); onBack() }, onDismiss = { deleting = false })
     if (adding) AddVideosDialog(allVideos, list.videoIds.toSet(), onConfirm = { VideoLibraryStore.addToList(id, it) }, onDismiss = { adding = false })
 }
 
@@ -375,7 +379,7 @@ fun VideoCategoryScreen(id: String, onBack: () -> Unit) {
             CollectionMenu(
                 onRename = { renaming = true },
                 onDelete = { deleting = true },
-                deleteLabel = "Удалить категорию",
+                deleteLabel = tr(R.string.delete_category),
                 onDeleteWithVideos = {
                     UiEvents.delete.value = DeleteRequest.videos(items, cat.name, after = { VideoLibraryStore.deleteCategory(id) })
                 },
@@ -383,7 +387,7 @@ fun VideoCategoryScreen(id: String, onBack: () -> Unit) {
         }
         LazyColumn(Modifier.fillMaxSize()) {
             item(key = "header") {
-                CollectionHeader(items, cat.name, "Категория", onAdd = { adding = true })
+                CollectionHeader(items, cat.name, tr(R.string.category), onAdd = { adding = true })
             }
             itemsIndexed(items, key = { _, v -> v.id }) { i, v ->
                 VideoRow(
@@ -391,15 +395,15 @@ fun VideoCategoryScreen(id: String, onBack: () -> Unit) {
                     index = i + 1,
                     isCurrent = v.id == ui.videoId,
                     onClick = { VideoController.play(items, i, listTitle = cat.name) },
-                    removeLabel = "Убрать из категории",
+                    removeLabel = tr(R.string.remove_from_category),
                     onRemove = { VideoLibraryStore.setInCategory(id, v.id, false) },
                 )
             }
         }
     }
 
-    if (renaming) TextInputDialog("Переименовать категорию", cat.name, "Сохранить", onConfirm = { VideoLibraryStore.renameCategory(id, it) }, onDismiss = { renaming = false })
-    if (deleting) ConfirmDelete("Удалить категорию «${cat.name}»?", onConfirm = { VideoLibraryStore.deleteCategory(id); onBack() }, onDismiss = { deleting = false })
+    if (renaming) TextInputDialog(tr(R.string.rename_category), cat.name, tr(R.string.action_save), onConfirm = { VideoLibraryStore.renameCategory(id, it) }, onDismiss = { renaming = false })
+    if (deleting) ConfirmDelete(tr(R.string.delete_category_q, cat.name), onConfirm = { VideoLibraryStore.deleteCategory(id); onBack() }, onDismiss = { deleting = false })
     if (adding) AddVideosDialog(allVideos, cat.videoIds, onConfirm = { ids -> ids.forEach { VideoLibraryStore.setInCategory(id, it, true) } }, onDismiss = { adding = false })
 }
 
@@ -462,7 +466,7 @@ private fun CollectionHeader(items: List<Video>, title: String, kind: String, on
                 ) {
                     Icon(Icons.Rounded.PlayArrow, null)
                     Spacer(Modifier.width(4.dp))
-                    Text("Смотреть всё")
+                    Text(tr(R.string.watch_all))
                 }
                 OutlinedButton(
                     onClick = { VideoController.play(items.shuffled(), 0, listTitle = title) },
@@ -471,18 +475,18 @@ private fun CollectionHeader(items: List<Video>, title: String, kind: String, on
                 ) {
                     Icon(Icons.Rounded.Shuffle, null, Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text("Перемешать")
+                    Text(tr(R.string.order_shuffle))
                 }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = onAdd) {
                     Icon(Icons.Rounded.Add, null)
                     Spacer(Modifier.width(6.dp))
-                    Text("Добавить видео")
+                    Text(tr(R.string.add_videos))
                 }
                 if (hint) {
                     Text(
-                        "Удерживайте видео, чтобы перетащить",
+                        tr(R.string.hold_to_drag),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.End,
@@ -515,7 +519,7 @@ private fun VideoRow(
     ) {
         Box(Modifier.width(32.dp), contentAlignment = Alignment.Center) {
             if (isCurrent) {
-                Icon(Icons.Rounded.PlayArrow, "Сейчас играет", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                Icon(Icons.Rounded.PlayArrow, tr(R.string.now_playing), tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
             } else {
                 Text("$index", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
@@ -536,7 +540,7 @@ private fun VideoRow(
             Text(formatSize(video.size), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Box {
-            IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreVert, "Ещё", tint = MaterialTheme.colorScheme.onSurfaceVariant) }
+            IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreVert, tr(R.string.more), tint = MaterialTheme.colorScheme.onSurfaceVariant) }
             DropdownMenu(menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(
                     text = { Text(removeLabel) },
@@ -544,7 +548,7 @@ private fun VideoRow(
                     onClick = { menu = false; onRemove() },
                 )
                 DropdownMenuItem(
-                    text = { Text(if (video.isDevice) "Удалить с устройства" else "Удалить", color = MaterialTheme.colorScheme.error) },
+                    text = { Text(if (video.isDevice) tr(R.string.delete_from_device) else tr(R.string.action_delete), color = MaterialTheme.colorScheme.error) },
                     leadingIcon = { Icon(Icons.Rounded.DeleteForever, null, tint = MaterialTheme.colorScheme.error) },
                     onClick = { menu = false; UiEvents.delete.value = DeleteRequest.videos(listOf(video), video.title) },
                 )
@@ -557,12 +561,12 @@ private fun VideoRow(
 private fun CollectionMenu(onRename: () -> Unit, onDelete: () -> Unit, deleteLabel: String, onDeleteWithVideos: () -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
-        IconButton(onClick = { open = true }) { Icon(Icons.Rounded.MoreVert, "Ещё") }
+        IconButton(onClick = { open = true }) { Icon(Icons.Rounded.MoreVert, tr(R.string.more)) }
         DropdownMenu(open, onDismissRequest = { open = false }) {
-            DropdownMenuItem(text = { Text("Переименовать") }, leadingIcon = { Icon(Icons.Rounded.Edit, null) }, onClick = { open = false; onRename() })
+            DropdownMenuItem(text = { Text(tr(R.string.rename)) }, leadingIcon = { Icon(Icons.Rounded.Edit, null) }, onClick = { open = false; onRename() })
             DropdownMenuItem(text = { Text(deleteLabel) }, leadingIcon = { Icon(Icons.Rounded.Delete, null) }, onClick = { open = false; onDelete() })
             DropdownMenuItem(
-                text = { Text("Удалить вместе с видео", color = MaterialTheme.colorScheme.error) },
+                text = { Text(tr(R.string.delete_with_videos), color = MaterialTheme.colorScheme.error) },
                 leadingIcon = { Icon(Icons.Rounded.DeleteForever, null, tint = MaterialTheme.colorScheme.error) },
                 onClick = { open = false; onDeleteWithVideos() },
             )
@@ -575,9 +579,9 @@ private fun ConfirmDelete(title: String, onConfirm: () -> Unit, onDismiss: () ->
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
-        text = { Text("Сами видео останутся на устройстве.") },
-        confirmButton = { TextButton(onClick = { onDismiss(); onConfirm() }) { Text("Удалить") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
+        text = { Text(tr(R.string.videos_stay)) },
+        confirmButton = { TextButton(onClick = { onDismiss(); onConfirm() }) { Text(tr(R.string.action_delete)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(tr(R.string.action_cancel)) } },
     )
 }
 
@@ -591,7 +595,7 @@ fun AddToVideoListDialog(videoIds: List<Long>, onDismiss: () -> Unit) {
     var newName by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Добавить в список") },
+        title = { Text(tr(R.string.add_to_list)) },
         text = {
             Column {
                 LazyColumn(Modifier.heightIn(max = 300.dp)) {
@@ -602,7 +606,7 @@ fun AddToVideoListDialog(videoIds: List<Long>, onDismiss: () -> Unit) {
                                 .fillMaxWidth()
                                 .clickable {
                                     VideoLibraryStore.addToList(l.id, videoIds)
-                                    Toast.makeText(context, "Добавлено в «${l.name}»", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, tr(R.string.added_to, l.name), Toast.LENGTH_SHORT).show()
                                     onDismiss()
                                 }
                                 .padding(vertical = 14.dp),
@@ -613,7 +617,7 @@ fun AddToVideoListDialog(videoIds: List<Long>, onDismiss: () -> Unit) {
                 if (lists.isNotEmpty()) HorizontalDivider(Modifier.padding(vertical = 8.dp))
                 OutlinedTextField(
                     value = newName, onValueChange = { newName = it },
-                    label = { Text("Новый список") }, singleLine = true,
+                    label = { Text(tr(R.string.new_list)) }, singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -621,11 +625,11 @@ fun AddToVideoListDialog(videoIds: List<Long>, onDismiss: () -> Unit) {
         confirmButton = {
             TextButton(enabled = newName.isNotBlank(), onClick = {
                 val l = VideoLibraryStore.createList(newName, videoIds)
-                Toast.makeText(context, "Создан список «${l.name}»", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, tr(R.string.list_created, l.name), Toast.LENGTH_SHORT).show()
                 onDismiss()
-            }) { Text("Создать") }
+            }) { Text(tr(R.string.action_create)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(tr(R.string.action_cancel)) } },
     )
 }
 
@@ -636,7 +640,7 @@ fun CategoriesDialog(videoId: Long, onDismiss: () -> Unit) {
     var newName by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Категории") },
+        title = { Text(tr(R.string.categories)) },
         text = {
             Column {
                 LazyColumn(Modifier.heightIn(max = 300.dp)) {
@@ -658,16 +662,16 @@ fun CategoriesDialog(videoId: Long, onDismiss: () -> Unit) {
                 if (categories.isNotEmpty()) HorizontalDivider(Modifier.padding(vertical = 8.dp))
                 OutlinedTextField(
                     value = newName, onValueChange = { newName = it },
-                    label = { Text("Новая категория") }, singleLine = true,
+                    label = { Text(tr(R.string.new_category)) }, singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
         },
         confirmButton = {
             if (newName.isNotBlank()) {
-                TextButton(onClick = { VideoLibraryStore.createCategory(newName, setOf(videoId)); newName = "" }) { Text("Создать") }
+                TextButton(onClick = { VideoLibraryStore.createCategory(newName, setOf(videoId)); newName = "" }) { Text(tr(R.string.action_create)) }
             } else {
-                TextButton(onClick = onDismiss) { Text("Готово") }
+                TextButton(onClick = onDismiss) { Text(tr(R.string.done)) }
             }
         },
     )
@@ -685,17 +689,17 @@ private fun AddVideosDialog(all: List<Video>, alreadyIn: Set<Long>, onConfirm: (
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Column(Modifier.systemBarsPadding()) {
                 TopAppBar(
-                    title = { Text("Выбрано: ${selected.size}") },
-                    navigationIcon = { IconButton(onClick = onDismiss) { Icon(Icons.Rounded.Close, "Закрыть") } },
+                    title = { Text(trn(R.plurals.tracks_selected, selected.size)) },
+                    navigationIcon = { IconButton(onClick = onDismiss) { Icon(Icons.Rounded.Close, tr(R.string.action_close)) } },
                     actions = {
                         Button(enabled = selected.isNotEmpty(), onClick = { onConfirm(selected.toList()); onDismiss() }, modifier = Modifier.padding(end = 8.dp)) {
-                            Text("Добавить")
+                            Text(tr(R.string.action_add))
                         }
                     },
                 )
                 OutlinedTextField(
                     value = query, onValueChange = { query = it },
-                    placeholder = { Text("Поиск") }, singleLine = true,
+                    placeholder = { Text(tr(R.string.search)) }, singleLine = true,
                     shape = AppShapes.Card,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -731,16 +735,16 @@ private fun AddVideosDialog(all: List<Video>, alreadyIn: Set<Long>, onConfirm: (
 suspend fun refreshSponsorBlock(context: Context, video: Video) {
     val youtubeId = VideoMetaStore.get(video.id)?.youtubeId ?: video.youtubeIdFromName
     if (youtubeId == null) {
-        Toast.makeText(context, "Не удалось определить ID ролика YouTube", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, tr(R.string.sb_no_id), Toast.LENGTH_SHORT).show()
         return
     }
     val segments = SponsorBlock.fetch(youtubeId)
     if (segments == null) {
-        Toast.makeText(context, "Нет подключения к SponsorBlock", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, tr(R.string.sb_no_connection), Toast.LENGTH_SHORT).show()
         return
     }
     VideoMetaStore.updateSegments(video.id, youtubeId, segments)
-    val msg = if (segments.isEmpty()) "В базе SponsorBlock нет отрезков для этого видео"
-    else "Сохранено отрезков: ${segments.size} — будут пропускаться офлайн"
+    val msg = if (segments.isEmpty()) tr(R.string.sb_none_found)
+    else tr(R.string.sb_saved_n, segments.size)
     Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
 }

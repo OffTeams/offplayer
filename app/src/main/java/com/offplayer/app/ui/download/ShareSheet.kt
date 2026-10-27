@@ -1,5 +1,8 @@
 package com.offplayer.app.ui.download
 
+import com.offplayer.app.tr
+import com.offplayer.app.R
+
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
@@ -101,16 +104,16 @@ fun ShareSheet(url: String, onClose: () -> Unit, onOpenApp: () -> Unit) {
     var wholePlaylist by remember { mutableStateOf(Downloader.isPlaylistPage(url) && AppSettings.wholePlaylist.value) }
 
     val audioOptions = listOf(
-        ShareOption(DownloadKind.AUDIO, "a:mp3", "MP3", "совместим со всем"),
-        ShareOption(DownloadKind.AUDIO, "a:m4a", "M4A", "быстро, без перекодирования"),
-        ShareOption(DownloadKind.AUDIO, "a:opus", "Opus", "компактный"),
+        ShareOption(DownloadKind.AUDIO, "a:mp3", "MP3", tr(R.string.fmt_mp3_note)),
+        ShareOption(DownloadKind.AUDIO, "a:m4a", "M4A", tr(R.string.fmt_m4a_note)),
+        ShareOption(DownloadKind.AUDIO, "a:opus", "Opus", tr(R.string.fmt_opus_note)),
     )
     // Только качества, которые реально есть у ролика
     val heights = info?.heights.orEmpty()
     val videoOptions = buildList {
         val avail = if (heights.isEmpty()) listOf(360, 720, 1080) else heights.filter { it >= 240 }.distinct()
         avail.forEach { h -> add(ShareOption(DownloadKind.VIDEO, "v:$h", if (h >= 2160) "4K" else "${h}p")) }
-        add(ShareOption(DownloadKind.VIDEO, "v:0", "Лучшее"))
+        add(ShareOption(DownloadKind.VIDEO, "v:0", tr(R.string.quality_best)))
     }
     var tab by remember { mutableStateOf(if (selected.startsWith("a:")) DownloadKind.AUDIO else DownloadKind.VIDEO) }
     val options = if (tab == DownloadKind.AUDIO) audioOptions else videoOptions
@@ -163,7 +166,7 @@ fun ShareSheet(url: String, onClose: () -> Unit, onOpenApp: () -> Unit) {
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text(
-                        info?.title ?: quick?.title ?: if (loading) "Получение сведений…" else "Скачать с YouTube",
+                        info?.title ?: quick?.title ?: if (loading) tr(R.string.dl_fetching_info) else tr(R.string.download_from_youtube),
                         style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
                         maxLines = 2, overflow = TextOverflow.Ellipsis,
                     )
@@ -199,13 +202,13 @@ fun ShareSheet(url: String, onClose: () -> Unit, onOpenApp: () -> Unit) {
                     onClick = { tab = DownloadKind.AUDIO },
                     shape = SegmentedButtonDefaults.itemShape(0, 2),
                     icon = { Icon(Icons.Rounded.MusicNote, null, Modifier.size(18.dp)) },
-                ) { Text("Аудио") }
+                ) { Text(tr(R.string.audio)) }
                 SegmentedButton(
                     selected = tab == DownloadKind.VIDEO,
                     onClick = { tab = DownloadKind.VIDEO },
                     shape = SegmentedButtonDefaults.itemShape(1, 2),
                     icon = { Icon(Icons.Rounded.Movie, null, Modifier.size(18.dp)) },
-                ) { Text("Видео") }
+                ) { Text(tr(R.string.tab_video)) }
             }
             Spacer(Modifier.height(6.dp))
 
@@ -225,9 +228,9 @@ fun ShareSheet(url: String, onClose: () -> Unit, onOpenApp: () -> Unit) {
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("Сохранить как", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        SheetChip("Музыку", !asPodcast) { asPodcast = false }
-                        SheetChip("Подкаст", asPodcast) { asPodcast = true }
+                        Text(tr(R.string.save_as), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        SheetChip(tr(R.string.save_as_music), !asPodcast) { asPodcast = false }
+                        SheetChip(tr(R.string.save_as_podcast), asPodcast) { asPodcast = true }
                     }
                 }
                 if (isPlaylist) {
@@ -239,7 +242,7 @@ fun ShareSheet(url: String, onClose: () -> Unit, onOpenApp: () -> Unit) {
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            if (tab == DownloadKind.AUDIO) "Весь плейлист — как микс" else "Весь плейлист — как список",
+                            if (tab == DownloadKind.AUDIO) tr(R.string.whole_playlist_as_mix) else tr(R.string.whole_playlist_as_list),
                             style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.weight(1f),
                         )
@@ -250,7 +253,7 @@ fun ShareSheet(url: String, onClose: () -> Unit, onOpenApp: () -> Unit) {
 
             Spacer(Modifier.height(8.dp))
             Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onOpenApp) { Text("Открыть OFFPlayer") }
+                TextButton(onClick = onOpenApp) { Text(tr(R.string.open_offplayer)) }
                 Spacer(Modifier.weight(1f))
                 Button(
                     onClick = {
@@ -270,7 +273,7 @@ fun ShareSheet(url: String, onClose: () -> Unit, onOpenApp: () -> Unit) {
                                 podcast = kind == DownloadKind.AUDIO && !whole && asPodcast,
                             ),
                         )
-                        Toast.makeText(context, "Загрузка добавлена в OFFPlayer", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, tr(R.string.download_added), Toast.LENGTH_SHORT).show()
                         scope.launch { sheet.hide() }.invokeOnCompletion { onClose() }
                     },
                     modifier = Modifier.height(46.dp),
@@ -281,7 +284,7 @@ fun ShareSheet(url: String, onClose: () -> Unit, onOpenApp: () -> Unit) {
                 ) {
                     Icon(Icons.Rounded.Download, null, Modifier.size(20.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text("Скачать", fontWeight = FontWeight.SemiBold)
+                    Text(tr(R.string.action_download), fontWeight = FontWeight.SemiBold)
                 }
             }
         }

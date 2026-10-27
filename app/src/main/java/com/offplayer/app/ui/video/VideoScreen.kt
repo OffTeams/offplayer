@@ -1,5 +1,16 @@
 package com.offplayer.app.ui.video
 
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.foundation.layout.size
+import com.offplayer.app.ui.music.SelectionPanel
+import com.offplayer.app.ui.music.SelectionAction
+import androidx.compose.ui.draw.clip
+import com.offplayer.app.tr
+import com.offplayer.app.R
+
 import com.offplayer.app.ui.theme.AppShapes
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -92,9 +103,9 @@ import com.offplayer.app.ui.DeviceFolderHeader
 import com.offplayer.app.ui.DevicePermissionPrompt
 import kotlinx.coroutines.delay
 
-enum class VideoSort(val label: String) { NEWEST("Сначала новые"), OLDEST("Сначала старые"), TITLE("По названию"), LONGEST("Самые длинные"), LARGEST("Самые большие") }
+enum class VideoSort(@androidx.annotation.StringRes private val res: Int) { NEWEST(R.string.vsort_newest), OLDEST(R.string.vsort_oldest), TITLE(R.string.psort_title), LONGEST(R.string.vsort_longest), LARGEST(R.string.vsort_largest); val label: String get() = tr(res) }
 
-enum class VideoSection(val label: String) { ALL("Все"), LISTS("Списки"), CATEGORIES("Категории"), DEVICE("На устройстве") }
+enum class VideoSection(@androidx.annotation.StringRes private val res: Int) { ALL(R.string.all), LISTS(R.string.lists), CATEGORIES(R.string.categories), DEVICE(R.string.sec_device); val label: String get() = tr(res) }
 
 private sealed interface VideoDest {
     data class ListDest(val id: String) : VideoDest
@@ -177,17 +188,17 @@ fun VideoScreen() {
                 if (searching) {
                     TextField(
                         value = query, onValueChange = { query = it },
-                        placeholder = { Text("Поиск видео") }, singleLine = true,
+                        placeholder = { Text(tr(R.string.search_video)) }, singleLine = true,
                         colors = TextFieldDefaults.colors(focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent),
                         modifier = Modifier.fillMaxWidth(),
                     )
                 } else {
-                    Text("Видео", fontWeight = FontWeight.Bold)
+                    Text(tr(R.string.tab_video), fontWeight = FontWeight.Bold)
                 }
             },
             actions = {
                 IconButton(onClick = { searching = !searching; if (!searching) query = "" }) {
-                    Icon(if (searching) Icons.Rounded.Close else Icons.Rounded.Search, "Поиск")
+                    Icon(if (searching) Icons.Rounded.Close else Icons.Rounded.Search, tr(R.string.search))
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
@@ -230,15 +241,15 @@ fun VideoScreen() {
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                item { FolderChip("Все папки", folder == null, small = true) { folder = null } }
+                item { FolderChip(tr(R.string.all_folders), folder == null, small = true) { folder = null } }
                 items(folders) { f -> FolderChip(f, folder == f, small = true) { folder = f } }
             }
         }
 
         if (videos.isEmpty()) {
             EmptyState(
-                Icons.Rounded.VideoLibrary, "Видео пока нет",
-                "Скачайте видео во вкладке «Загрузки» или включите в настройках загрузок контент из памяти устройства.",
+                Icons.Rounded.VideoLibrary, tr(R.string.no_videos),
+                tr(R.string.no_videos_desc),
             )
             return@Column
         }
@@ -248,6 +259,36 @@ fun VideoScreen() {
             val i = shown.indexOfFirst { it.id == highlight }
             if (highlight != null && i >= 0) gridState.animateScrollToItem(i)
         }
+
+        // Выбор нескольких: долгое нажатие начинает выбор, затем нажатия отмечают видео
+        var selected by remember { mutableStateOf(setOf<Long>()) }
+        var toList by remember { mutableStateOf(false) }
+        val selecting = selected.isNotEmpty()
+        LaunchedEffect(shown) { selected = selected.filterTo(HashSet()) { id -> shown.any { it.id == id } } }
+        BackHandler(selecting && backEnabled) { selected = emptySet() }
+        val chosen = remember(selected, shown) { shown.filter { it.id in selected } }
+        if (selecting) {
+            SelectionPanel(
+                count = selected.size,
+                allSelected = selected.size == shown.size,
+                onClose = { selected = emptySet() },
+                onSelectAll = { selected = if (selected.size == shown.size) emptySet() else shown.map { it.id }.toSet() },
+            ) {
+                SelectionAction(
+                    Icons.Rounded.PlayArrow, tr(R.string.action_watch), modifier = Modifier.weight(1f),
+                    onClick = { VideoController.play(chosen, 0); selected = emptySet() },
+                )
+                SelectionAction(Icons.AutoMirrored.Rounded.PlaylistAdd, tr(R.string.to_list), onClick = { toList = true }, modifier = Modifier.weight(1f))
+                SelectionAction(
+                    Icons.Rounded.Delete, tr(R.string.action_delete), danger = true, modifier = Modifier.weight(1f),
+                    onClick = {
+                        UiEvents.delete.value = DeleteRequest.videos(chosen, videosCount(chosen.size))
+                        selected = emptySet()
+                    },
+                )
+            }
+        }
+        if (toList) AddToVideoListDialog(chosen.map { it.id }, onDismiss = { toList = false; selected = emptySet() })
         LazyVerticalGrid(
             columns = GridCells.Adaptive(300.dp),
             state = gridState,
@@ -255,7 +296,14 @@ fun VideoScreen() {
             modifier = Modifier.fillMaxSize(),
         ) {
             itemsIndexed(shown, key = { _, v -> v.id }) { index, v ->
-                VideoCard(v, highlighted = v.id == highlight) { VideoController.play(shown, index) }
+                VideoCard(
+                    v, highlighted = v.id == highlight,
+                    selected = if (selecting) v.id in selected else null,
+                    onLongClick = { selected = selected + v.id },
+                ) {
+                    if (selecting) selected = if (v.id in selected) selected - v.id else selected + v.id
+                    else VideoController.play(shown, index)
+                }
             }
         }
     }
@@ -280,17 +328,29 @@ private fun FolderChip(label: String, selected: Boolean, small: Boolean = false,
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun VideoCard(video: Video, highlighted: Boolean = false, onClick: () -> Unit) {
+private fun VideoCard(
+    video: Video,
+    highlighted: Boolean = false,
+    /** Режим выбора: null — обычный список, true/false — отмечено ли видео. */
+    selected: Boolean? = null,
+    onLongClick: (() -> Unit)? = null,
+    onClick: () -> Unit,
+) {
     val flash by animateColorAsState(
-        if (highlighted) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f) else Color.Transparent,
-        tween(600), label = "flash",
+        when {
+            selected == true -> MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
+            highlighted -> MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+            else -> Color.Transparent
+        },
+        tween(if (selected != null) 150 else 600), label = "flash",
     )
     Column(
         Modifier
             .fillMaxWidth()
             .background(flash, AppShapes.Card)
-            .clickable(onClick = onClick)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .padding(horizontal = 12.dp, vertical = 8.dp)
     ) {
         Box {
@@ -313,6 +373,17 @@ private fun VideoCard(video: Video, highlighted: Boolean = false, onClick: () ->
                     .background(Color.Black.copy(alpha = 0.8f), AppShapes.Badge)
                     .padding(horizontal = 5.dp, vertical = 2.dp),
             )
+            if (selected == true) {
+                Box(
+                    Modifier
+                        .matchParentSize()
+                        .clip(AppShapes.Card)
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Rounded.CheckCircle, tr(R.string.selected), tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(40.dp))
+                }
+            }
         }
         Row(Modifier.padding(top = 10.dp, start = 4.dp)) {
             Column(Modifier.weight(1f)) {
@@ -325,7 +396,7 @@ private fun VideoCard(video: Video, highlighted: Boolean = false, onClick: () ->
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            VideoMenu(video)
+            if (selected == null) VideoMenu(video)
         }
     }
 }
@@ -345,7 +416,7 @@ private fun DeviceVideoSection(query: String) {
             .toSortedMap(compareBy(String.CASE_INSENSITIVE_ORDER) { it.path })
     }
     if (groups.isEmpty()) {
-        EmptyState(Icons.Rounded.VideoLibrary, "На устройстве нет видео", "Видео из памяти телефона появятся здесь, сгруппированные по папкам.")
+        EmptyState(Icons.Rounded.VideoLibrary, tr(R.string.no_device_videos), tr(R.string.no_device_videos_desc))
         return
     }
     var collapsed by rememberSaveable { mutableStateOf(setOf<String>()) }
@@ -394,16 +465,16 @@ private fun VideoMenu(video: Video) {
     val canSponsorBlock = m?.youtubeId != null || video.youtubeIdFromName != null
     Box {
         IconButton(onClick = { open = true }) {
-            Icon(Icons.Rounded.MoreVert, "Ещё", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(Icons.Rounded.MoreVert, tr(R.string.more), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         DropdownMenu(open, onDismissRequest = { open = false }) {
             DropdownMenuItem(
-                text = { Text("Добавить в список") },
+                text = { Text(tr(R.string.add_to_list)) },
                 leadingIcon = { Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, null) },
                 onClick = { open = false; toList = true },
             )
             DropdownMenuItem(
-                text = { Text("Категории…") },
+                text = { Text(tr(R.string.categories_ellipsis)) },
                 leadingIcon = { Icon(Icons.Rounded.Label, null) },
                 onClick = { open = false; categories = true },
             )
@@ -411,10 +482,10 @@ private fun VideoMenu(video: Video) {
                 DropdownMenuItem(
                     text = {
                         Column {
-                            Text(if (m?.segmentsFetchedAt ?: 0L > 0) "Обновить SponsorBlock" else "Загрузить SponsorBlock")
+                            Text(if (m?.segmentsFetchedAt ?: 0L > 0) tr(R.string.sb_refresh) else tr(R.string.sb_load))
                             if (m != null && m.segmentsFetchedAt > 0) {
                                 Text(
-                                    "Отрезков: ${m.segments.size}",
+                                    tr(R.string.sb_segments_n, m.segments.size),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -430,7 +501,7 @@ private fun VideoMenu(video: Video) {
             }
             HorizontalDivider()
             DropdownMenuItem(
-                text = { Text(if (video.isDevice) "Удалить с устройства" else "Удалить", color = MaterialTheme.colorScheme.error) },
+                text = { Text(if (video.isDevice) tr(R.string.delete_from_device) else tr(R.string.action_delete), color = MaterialTheme.colorScheme.error) },
                 leadingIcon = { Icon(Icons.Rounded.DeleteForever, null, tint = MaterialTheme.colorScheme.error) },
                 onClick = {
                     open = false
@@ -447,7 +518,7 @@ private fun VideoMenu(video: Video) {
 private fun VideoSortMenu(sort: VideoSort, onSort: (VideoSort) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
-        IconButton(onClick = { open = true }) { Icon(Icons.AutoMirrored.Rounded.Sort, "Сортировка") }
+        IconButton(onClick = { open = true }) { Icon(Icons.AutoMirrored.Rounded.Sort, tr(R.string.sorting)) }
         DropdownMenu(open, onDismissRequest = { open = false }) {
             VideoSort.entries.forEach { s ->
                 DropdownMenuItem(

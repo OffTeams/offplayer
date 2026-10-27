@@ -1,5 +1,8 @@
 package com.offplayer.app.data
 
+import com.offplayer.app.tr
+import com.offplayer.app.R
+
 import android.content.Context
 import com.offplayer.app.download.DownloadResult
 import com.offplayer.app.download.Downloader
@@ -19,14 +22,16 @@ import org.json.JSONObject
 import java.io.File
 import java.util.UUID
 
-enum class PlaylistSort(val label: String) {
-    TITLE("По названию"),
-    ARTIST("По исполнителю"),
-    ALBUM("По альбому"),
-    DURATION("По длительности"),
-    DATE_ADDED("По дате добавления"),
-    REVERSE("В обратном порядке"),
-    RANDOM("Перемешать порядок"),
+enum class PlaylistSort(@androidx.annotation.StringRes private val res: Int) {
+    TITLE(com.offplayer.app.R.string.psort_title),
+    ARTIST(com.offplayer.app.R.string.psort_artist),
+    ALBUM(com.offplayer.app.R.string.psort_album),
+    DURATION(com.offplayer.app.R.string.psort_duration),
+    DATE_ADDED(com.offplayer.app.R.string.psort_date),
+    REVERSE(com.offplayer.app.R.string.psort_reverse),
+    RANDOM(com.offplayer.app.R.string.psort_random);
+
+    val label: String get() = com.offplayer.app.tr(res)
 }
 
 /** Плейлисты хранятся в JSON-файле во внутренней памяти приложения. */
@@ -47,7 +52,7 @@ object PlaylistStore {
 
     fun create(name: String, trackIds: List<Long> = emptyList(), isMix: Boolean = false, sourceUrl: String? = null): Playlist {
         val p = Playlist(
-            UUID.randomUUID().toString(), name.trim().ifEmpty { "Новый плейлист" }, trackIds.distinct(),
+            UUID.randomUUID().toString(), name.trim().ifEmpty { tr(R.string.new_playlist) }, trackIds.distinct(),
             System.currentTimeMillis(), isMix, sourceUrl,
         )
         mutate { it + p }

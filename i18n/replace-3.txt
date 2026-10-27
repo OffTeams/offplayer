@@ -1,0 +1,170 @@
+FILE ui/music/MusicScreen.kt
+- enum class MusicSection(val label: String) {
++ enum class MusicSection(@androidx.annotation.StringRes private val res: Int) {
+- TRACKS("Треки"), ALBUMS("Альбомы"), ARTISTS("Исполнители"), PLAYLISTS("Плейлисты"), MIXES("Миксы"), DEVICE("На устройстве")
++ TRACKS(R.string.sec_tracks), ALBUMS(R.string.sec_albums), ARTISTS(R.string.sec_artists), PLAYLISTS(R.string.sec_playlists), MIXES(R.string.sec_mixes), DEVICE(R.string.sec_device); val label: String get() = tr(res)
+- enum class TrackSort(val label: String) {
++ enum class TrackSort(@androidx.annotation.StringRes private val res: Int) {
+- TITLE("Название"), ARTIST("Исполнитель"), ALBUM("Альбом"), DATE_ADDED("Дата добавления"), DURATION("Длительность")
++ TITLE(R.string.tsort_title), ARTIST(R.string.tsort_artist), ALBUM(R.string.tsort_album), DATE_ADDED(R.string.tsort_date), DURATION(R.string.tsort_duration); val label: String get() = tr(res)
+- Text("Поиск музыки")
++ Text(tr(R.string.search_music))
+- Text("Музыка", fontWeight
++ Text(tr(R.string.tab_music), fontWeight
+- Icons.Rounded.Search, "Поиск")
++ Icons.Rounded.Search, tr(R.string.search))
+- Icons.Rounded.LibraryMusic, "Музыки пока нет",
++ Icons.Rounded.LibraryMusic, tr(R.string.no_music),
+- "Скачайте треки во вкладке «Загрузки» или включите в настройках загрузок контент из памяти устройства.",
++ tr(R.string.no_music_desc),
+- Text("Перемешать")
++ Text(tr(R.string.order_shuffle))
+- "На устройстве нет музыки", "Аудиофайлы из памяти телефона появятся здесь, сгруппированные по папкам.")
++ tr(R.string.no_device_music), tr(R.string.no_device_music_desc))
+- Icon(Icons.Rounded.Close, "Отменить выбор")
++ Icon(Icons.Rounded.Close, tr(R.string.cancel_selection))
+- Text("Выбрано: $count", style
++ Text(trn(R.plurals.tracks_selected, count), style
+- Icons.Rounded.SelectAll, "Выбрать все")
++ Icons.Rounded.SelectAll, tr(R.string.select_all))
+- Icons.Rounded.PlayArrow, "Слушать", enabled
++ Icons.Rounded.PlayArrow, tr(R.string.action_listen), enabled
+- Icons.AutoMirrored.Rounded.QueueMusic, "В очередь", onClick
++ Icons.AutoMirrored.Rounded.QueueMusic, tr(R.string.to_queue), onClick
+- Icons.AutoMirrored.Rounded.PlaylistAdd, "В плейлист", onClick
++ Icons.AutoMirrored.Rounded.PlaylistAdd, tr(R.string.to_playlist), onClick
+- Icons.Rounded.Delete, "Удалить", onClick
++ Icons.Rounded.Delete, tr(R.string.action_delete), onClick
+- Text(if (descending) "По возрастанию" else "По убыванию")
++ Text(if (descending) tr(R.string.sort_ascending) else tr(R.string.sort_descending))
+- Icons.AutoMirrored.Rounded.PlaylistPlay, "Миксов пока нет",
++ Icons.AutoMirrored.Rounded.PlaylistPlay, tr(R.string.no_mixes),
+- "Вставьте во вкладке «Загрузки» ссылку на плейлист YouTube или YouTube Music и включите «Скачать весь плейлист» — он появится здесь.",
++ tr(R.string.no_mixes_desc),
+- Text("Новый плейлист")
++ Text(tr(R.string.new_playlist))
+- Icons.AutoMirrored.Rounded.PlaylistPlay, "Плейлистов пока нет",
++ Icons.AutoMirrored.Rounded.PlaylistPlay, tr(R.string.no_playlists),
+- "Создайте плейлист и добавляйте в него треки через меню «⋮» у трека.",
++ tr(R.string.no_playlists_desc),
+- title = "Новый плейлист", initial = "", confirmLabel = "Создать",
++ title = tr(R.string.new_playlist), initial = "", confirmLabel = tr(R.string.action_create),
+- "${if (p.isMix) "Микс" else "Плейлист"} • ${tracksCount(p.trackIds.size)}",
++ "${if (p.isMix) tr(R.string.mix) else tr(R.string.playlist)} • ${tracksCount(p.trackIds.size)}",
+- SimpleCollection(dest.name, "Исполнитель", list
++ SimpleCollection(dest.name, tr(R.string.artist), list
+- return if (min >= 60) "${min / 60} ч ${min % 60} мин" else plural(min, "минута", "минуты", "минут")
++ return if (min >= 60) tr(R.string.hours_minutes, min / 60, min % 60) else trn(R.plurals.minutes, min)
+- Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Назад")
++ Icon(Icons.AutoMirrored.Rounded.ArrowBack, tr(R.string.action_back))
+- Text("Слушать")
++ Text(tr(R.string.action_listen))
+- Icon(Icons.Rounded.MoreVert, "Ещё")
++ Icon(Icons.Rounded.MoreVert, tr(R.string.more))
+- Text("Упорядочить…")
++ Text(tr(R.string.reorder))
+- Text("Переименовать")
++ Text(tr(R.string.rename))
+- Text(if (playlist.isMix) "Удалить микс" else "Удалить плейлист")
++ Text(if (playlist.isMix) tr(R.string.delete_mix) else tr(R.string.delete_playlist))
+- Text("Удалить вместе с треками", color
++ Text(tr(R.string.delete_with_tracks), color
+FILE ui/music/PlaylistScreen.kt
+- "${if (playlist.isMix) "Микс" else "Плейлист"} • ${tracksCount(items.size)} • ${totalDuration(items)}",
++ "${if (playlist.isMix) tr(R.string.mix) else tr(R.string.playlist)} • ${tracksCount(items.size)} • ${totalDuration(items)}",
+- "Плейлист будет повторяться бесконечно"
++ tr(R.string.playlist_repeat_forever)
+- Text("По кругу")
++ Text(tr(R.string.on_repeat))
+- Text("Добавить треки")
++ Text(tr(R.string.add_tracks))
+- "Перетаскивайте треки за ☰, чтобы изменить порядок",
++ tr(R.string.drag_tracks_hint),
+- Icons.Rounded.DragHandle, "Перетащить"
++ Icons.Rounded.DragHandle, tr(R.string.drag)
+- Text("Удалить из плейлиста")
++ Text(tr(R.string.remove_from_playlist))
+- TextInputDialog("Переименовать плейлист", playlist.name, "Сохранить",
++ TextInputDialog(tr(R.string.rename_playlist), playlist.name, tr(R.string.action_save),
+- Text("Удалить «${playlist.name}»?")
++ Text(tr(R.string.delete_name_q, playlist.name))
+- Text("Сами файлы останутся на устройстве.")
++ Text(tr(R.string.files_stay))
+- { Text("Удалить") }
++ { Text(tr(R.string.action_delete)) }
+- { Text("Отмена") }
++ { Text(tr(R.string.action_cancel)) }
+- Text("Выбрано: ${selected.size}")
++ Text(trn(R.plurals.tracks_selected, selected.size))
+- Icon(Icons.Rounded.Close, "Закрыть")
++ Icon(Icons.Rounded.Close, tr(R.string.action_close))
+- ) { Text("Добавить") }
++ ) { Text(tr(R.string.action_add)) }
+- Text("Поиск") }
++ Text(tr(R.string.search)) }
+FILE ui/music/Player.kt
+- Icon(Icons.Rounded.Close, "Завершить прослушивание")
++ Icon(Icons.Rounded.Close, tr(R.string.stop_listening))
+- Icons.Rounded.KeyboardArrowDown, "Свернуть", Modifier.size(32.dp)
++ Icons.Rounded.KeyboardArrowDown, tr(R.string.action_collapse), Modifier.size(32.dp)
+- Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, "В плейлист")
++ Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, tr(R.string.to_playlist))
+- Text("Очередь • ${state.queue.size}", style
++ Text(tr(R.string.queue_n, state.queue.size), style
+- if (queueOpen) "Свернуть очередь" else "Показать очередь",
++ if (queueOpen) tr(R.string.queue_collapse) else tr(R.string.queue_show),
+- Icons.Rounded.DragHandle, "Перетащить"
++ Icons.Rounded.DragHandle, tr(R.string.drag)
+- Icon(Icons.Rounded.Close, "Убрать из очереди"
++ Icon(Icons.Rounded.Close, tr(R.string.remove_from_queue)
+- "СЕЙЧАС ИГРАЕТ",
++ tr(R.string.now_playing).uppercase(),
+- Toast.makeText(context, "Не удалось открыть ссылку"
++ Toast.makeText(context, tr(R.string.link_open_failed)
+- if (isChannel) "Канал автора" else "Ролик на YouTube",
++ if (isChannel) tr(R.string.author_channel) else tr(R.string.youtube_video),
+- if (online) "Открыть" else "Нет подключения к интернету",
++ if (online) tr(R.string.action_open) else tr(R.string.err_no_internet),
+- Icons.Rounded.Shuffle, "Перемешать", state.shuffle
++ Icons.Rounded.Shuffle, tr(R.string.order_shuffle), state.shuffle
+- Icons.Rounded.SkipPrevious, "Предыдущий"
++ Icons.Rounded.SkipPrevious, tr(R.string.previous)
+- Icons.Rounded.SkipNext, "Следующий"
++ Icons.Rounded.SkipNext, tr(R.string.next)
+- "Повтор", state.repeatMode
++ tr(R.string.repeat), state.repeatMode
+- -> "Бесконечный повтор очереди"
++ -> tr(R.string.repeat_all_on)
+- -> "Повтор текущего трека"
++ -> tr(R.string.repeat_one_on)
+- else -> "Повтор выключен"
++ else -> tr(R.string.repeat_off)
+- if (playing) "Пауза" else "Играть"
++ if (playing) tr(R.string.action_pause) else tr(R.string.action_play)
+FILE ui/music/SleepTimer.kt
+- Icons.Rounded.Bedtime, "Таймер сна"
++ Icons.Rounded.Bedtime, tr(R.string.sleep_timer)
+- "$minutes мин",
++ tr(R.string.min_short, minutes),
+- Text("Таймер сна", style
++ Text(tr(R.string.sleep_timer), style
+- "Музыка плавно затихнет и остановится",
++ tr(R.string.sleep_desc),
+- if (state.sleepEndOfTrack) "до конца трека" else "осталось",
++ if (state.sleepEndOfTrack) tr(R.string.until_track_end_lc) else tr(R.string.remaining),
+- text = "+5 мин",
++ text = tr(R.string.plus_5_min),
+- text = "Отключить",
++ text = tr(R.string.turn_off),
+- if (active) "Изменить время" else "Остановить через",
++ if (active) tr(R.string.change_time) else tr(R.string.stop_after),
+- text = "$m мин",
++ text = tr(R.string.min_short, m),
+- text = "До конца трека",
++ text = tr(R.string.until_track_end),
+- Text("Своё время", style
++ Text(tr(R.string.custom_time), style
+- Text("${custom.roundToInt()} мин", style
++ Text(tr(R.string.min_short, custom.roundToInt()), style
+- "Запустить на ${custom.roundToInt()} мин",
++ tr(R.string.start_for_min, custom.roundToInt()),

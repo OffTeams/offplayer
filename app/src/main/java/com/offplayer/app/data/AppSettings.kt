@@ -2,15 +2,24 @@ package com.offplayer.app.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.annotation.StringRes
+import com.offplayer.app.L
+import com.offplayer.app.R
+import com.offplayer.app.tr
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.util.Locale
 
-enum class ThemeMode(val label: String) { SYSTEM("Системная"), LIGHT("Светлая"), DARK("Тёмная") }
+enum class ThemeMode(@StringRes private val res: Int) {
+    SYSTEM(R.string.theme_system), LIGHT(R.string.theme_light), DARK(R.string.theme_dark);
+    val label: String get() = tr(res)
+}
 
 /** Стиль отображения обложки в развёрнутом плеере (листается свайпом). */
-enum class CoverStyle(val label: String) {
-    VINYL("Пластинка"), FRAME("Цифровая обложка"), CASSETTE("Кассета"), POLAROID("Полароид")
+enum class CoverStyle(@StringRes private val res: Int) {
+    VINYL(R.string.cover_vinyl), FRAME(R.string.cover_frame), CASSETTE(R.string.cover_cassette), POLAROID(R.string.cover_polaroid);
+    val label: String get() = tr(res)
 }
 
 /** Работа с музыкой и видео из памяти устройства (а не только со скачанным в приложение). */
@@ -24,31 +33,45 @@ enum class DeviceMediaMode {
 }
 
 /** Порядок воспроизведения по умолчанию. */
-enum class PlayOrder(val label: String, val description: String) {
-    IN_ORDER("По порядку", "Как в списке"),
-    SHUFFLE("Перемешать", "Случайный порядок"),
-    GENRE_MIX("Перемешать по жанрам", "Случайно, но два трека одного жанра подряд не идут"),
+enum class PlayOrder(@StringRes private val res: Int, @StringRes private val descRes: Int) {
+    IN_ORDER(R.string.order_in_order, R.string.order_in_order_desc),
+    SHUFFLE(R.string.order_shuffle, R.string.order_shuffle_desc),
+    GENRE_MIX(R.string.order_genre, R.string.order_genre_desc);
+    val label: String get() = tr(res)
+    val description: String get() = tr(descRes)
 }
 
 /** Что делать с отрезком SponsorBlock данной категории. */
-enum class SbAction(val label: String, val description: String) {
-    SKIP("Пропускать", "Отрезок пропускается автоматически, можно вернуться"),
-    ASK("Спрашивать", "Появляется кнопка «Пропустить» — решаете сами"),
-    OFF("Не трогать", "Отрезок не отмечается и не пропускается"),
+enum class SbAction(@StringRes private val res: Int, @StringRes private val descRes: Int) {
+    SKIP(R.string.sb_skip, R.string.sb_skip_desc),
+    ASK(R.string.sb_ask, R.string.sb_ask_desc),
+    OFF(R.string.sb_off, R.string.sb_off_desc);
+    val label: String get() = tr(res)
+    val description: String get() = tr(descRes)
 }
 
-/** Языки для дополнительных аудиодорожек и субтитров при скачивании. */
-val DOWNLOAD_LANGUAGES: Map<String, String> = linkedMapOf(
-    "ru" to "Русский",
-    "uk" to "Українська",
-    "en" to "English",
-    "de" to "Deutsch",
-    "es" to "Español",
-    "fr" to "Français",
-    "ja" to "日本語",
-    "ko" to "한국어",
+/**
+ * Языки, на которых YouTube даёт субтитры (включая автоперевод) и дубляж.
+ * Коды — как в yt-dlp / YouTube (iw — иврит, zh-Hans/zh-Hant — китайский).
+ */
+val DOWNLOAD_LANGUAGE_CODES: List<String> = listOf(
+    "af", "ak", "sq", "am", "ar", "hy", "as", "ay", "az", "bn", "eu", "be", "bho", "bs", "bg", "my", "ca",
+    "ceb", "zh-Hans", "zh-Hant", "co", "hr", "cs", "da", "dv", "nl", "en", "eo", "et", "ee", "fil", "fi",
+    "fr", "gl", "lg", "ka", "de", "el", "gn", "gu", "ht", "ha", "haw", "iw", "hi", "hmn", "hu", "is", "ig",
+    "id", "ga", "it", "ja", "jv", "kn", "kk", "km", "rw", "ko", "kri", "ku", "ky", "lo", "la", "lv", "ln",
+    "lt", "lb", "mk", "mg", "ms", "ml", "mt", "mi", "mr", "mn", "ne", "nso", "no", "ny", "or", "om", "ps",
+    "fa", "pl", "pt", "pa", "qu", "ro", "ru", "sm", "sa", "gd", "sr", "sn", "sd", "si", "sk", "sl", "so",
+    "st", "es", "su", "sw", "sv", "tg", "ta", "tt", "te", "th", "ti", "ts", "tr", "tk", "uk", "ur", "ug",
+    "uz", "vi", "cy", "fy", "xh", "yi", "yo", "zu",
 )
 
+/** Название языка на языке интерфейса, например «Немецкий» / «German». */
+fun languageName(code: String): String {
+    val ui = L.ctx.resources.configuration.locales[0]
+    val name = Locale.forLanguageTag(code).getDisplayName(ui)
+    if (name.isBlank() || name.equals(code, ignoreCase = true)) return code
+    return name.replaceFirstChar { it.titlecase(ui) }
+}
 object AppSettings {
     private lateinit var prefs: SharedPreferences
 
@@ -187,6 +210,7 @@ object AppSettings {
     private val _extraAudioLangs = MutableStateFlow<Set<String>>(emptySet())
     /** Дополнительные аудиодорожки (дубляж) к оригинальной; пусто — только оригинальная. */
     val extraAudioLangs: StateFlow<Set<String>> = _extraAudioLangs.asStateFlow()
+    fun setExtraAudioLangs(v: Set<String>) { _extraAudioLangs.value = v; prefs.edit().putStringSet("extra_audio_langs", v).apply() }
     fun toggleExtraAudioLang(lang: String) {
         val next = _extraAudioLangs.value.let { if (lang in it) it - lang else it + lang }
         _extraAudioLangs.value = next
@@ -196,6 +220,7 @@ object AppSettings {
     private val _subLangs = MutableStateFlow<Set<String>>(emptySet())
     /** Языки субтитров, которые встраиваются в видео при скачивании; пусто — без субтитров. */
     val subLangs: StateFlow<Set<String>> = _subLangs.asStateFlow()
+    fun setSubLangs(v: Set<String>) { _subLangs.value = v; prefs.edit().putStringSet("sub_langs", v).apply() }
     fun toggleSubLang(lang: String) {
         val next = _subLangs.value.let { if (lang in it) it - lang else it + lang }
         _subLangs.value = next

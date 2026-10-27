@@ -1,6 +1,8 @@
 package com.offplayer.app.data
 
+import com.offplayer.app.R
 import com.offplayer.app.model.SponsorSegment
+import com.offplayer.app.tr
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -15,28 +17,28 @@ import java.security.MessageDigest
  * выбирается из ответа локально.
  */
 object SponsorBlock {
-    /** Категории отрезков и их русские названия. */
-    val CATEGORIES: Map<String, String> = linkedMapOf(
-        "sponsor" to "Спонсор",
-        "selfpromo" to "Самореклама",
-        "interaction" to "Призыв подписаться",
-        "intro" to "Заставка",
-        "outro" to "Концовка",
-        "preview" to "Превью",
-        "filler" to "Отступление",
-        "music_offtopic" to "Не музыка",
+    /** Категории отрезков и их названия на языке интерфейса. */
+    val CATEGORIES: Map<String, String> get() = linkedMapOf(
+        "sponsor" to tr(R.string.sbc_sponsor),
+        "selfpromo" to tr(R.string.sbc_selfpromo),
+        "interaction" to tr(R.string.sbc_interaction),
+        "intro" to tr(R.string.sbc_intro),
+        "outro" to tr(R.string.sbc_outro),
+        "preview" to tr(R.string.sbc_preview),
+        "filler" to tr(R.string.sbc_filler),
+        "music_offtopic" to tr(R.string.sbc_music_offtopic),
     )
 
     /** Пояснения к категориям — для настроек. */
-    val DESCRIPTIONS: Map<String, String> = mapOf(
-        "sponsor" to "Оплаченная реклама и интеграции",
-        "selfpromo" to "Свой мерч, донаты, другие каналы автора",
-        "interaction" to "«Подпишитесь», «поставьте лайк» посреди видео",
-        "intro" to "Вступительная заставка без содержания",
-        "outro" to "Титры, конечные заставки",
-        "preview" to "Пересказ того, что будет в видео",
-        "filler" to "Шутки и отступления не по теме",
-        "music_offtopic" to "Части музыкальных клипов без музыки",
+    val DESCRIPTIONS: Map<String, String> get() = mapOf(
+        "sponsor" to tr(R.string.sbd_sponsor),
+        "selfpromo" to tr(R.string.sbd_selfpromo),
+        "interaction" to tr(R.string.sbd_interaction),
+        "intro" to tr(R.string.sbd_intro),
+        "outro" to tr(R.string.sbd_outro),
+        "preview" to tr(R.string.sbd_preview),
+        "filler" to tr(R.string.sbd_filler),
+        "music_offtopic" to tr(R.string.sbd_music_offtopic),
     )
 
     val DEFAULT_ENABLED = setOf("sponsor", "selfpromo", "interaction")

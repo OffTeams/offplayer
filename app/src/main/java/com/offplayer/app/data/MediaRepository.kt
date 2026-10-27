@@ -1,5 +1,8 @@
 package com.offplayer.app.data
 
+import com.offplayer.app.tr
+import com.offplayer.app.R
+
 import android.Manifest
 import android.content.ContentUris
 import android.content.Context
@@ -34,7 +37,11 @@ import kotlinx.coroutines.withContext
  * музыка и видео из памяти устройства (MediaStore). Музыка и видео хранятся раздельно.
  */
 object MediaRepository {
+    /** Метки «нет данных», сохранённые в library.json; на экране — на языке интерфейса. */
     const val UNKNOWN_ALBUM = "Без альбома"
+    const val UNKNOWN_ARTIST = "Неизвестный исполнитель"
+    fun displayArtist(a: String) = if (a == UNKNOWN_ARTIST || a.isBlank()) tr(R.string.unknown_artist) else a
+    fun displayAlbum(a: String) = if (a == UNKNOWN_ALBUM || a.isBlank()) tr(R.string.unknown_album) else a
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val refreshMutex = Mutex()
@@ -159,7 +166,7 @@ object MediaRepository {
         val owned = runCatching { query(audioCollection(), true) + query(videoCollection(), false) }.getOrNull() ?: return
         var ok = true
         owned.forEachIndexed { i, o ->
-            _migration.value = "Перенос медиатеки в защищённое хранилище: ${i + 1} из ${owned.size}"
+            _migration.value = tr(R.string.migration_progress, i + 1, owned.size)
             try {
                 val input = resolver.openInputStream(o.uri) ?: error("no stream")
                 val e = LibraryStore.importStream(input, o.name, o.isAudio)
@@ -242,12 +249,12 @@ object MediaRepository {
                 val folder = data?.let { java.io.File(it).parentFile?.name }
                 val album = c.getString(albumCol)
                     ?.takeUnless { it.isBlank() || it == MediaStore.UNKNOWN_STRING || it.equals(folder, ignoreCase = true) }
-                    ?: UNKNOWN_ALBUM
+                    ?: tr(R.string.unknown_album)
                 val artist = c.getString(artistCol)
                     ?.takeUnless { it.isBlank() || it == MediaStore.UNKNOWN_STRING }
-                    ?: "Неизвестный исполнитель"
+                    ?: tr(R.string.unknown_artist)
                 val title = c.getString(titleCol)?.takeUnless { it.isBlank() }
-                    ?: c.getString(nameCol)?.substringBeforeLast('.') ?: "Без названия"
+                    ?: c.getString(nameCol)?.substringBeforeLast('.') ?: tr(R.string.untitled)
                 result += Track(
                     id = id,
                     uri = ContentUris.withAppendedId(collection, id),
@@ -299,7 +306,7 @@ object MediaRepository {
             while (c.moveToNext()) {
                 val id = c.getLong(idCol)
                 val title = c.getString(titleCol)?.takeUnless { it.isBlank() }
-                    ?: c.getString(nameCol)?.substringBeforeLast('.') ?: "Без названия"
+                    ?: c.getString(nameCol)?.substringBeforeLast('.') ?: tr(R.string.untitled)
                 result += Video(
                     id = id,
                     uri = ContentUris.withAppendedId(collection, id),
@@ -309,7 +316,7 @@ object MediaRepository {
                     height = c.getInt(hCol),
                     size = c.getLong(sizeCol),
                     dateAdded = c.getLong(dateCol),
-                    folder = c.getString(bucketCol) ?: "Другое",
+                    folder = c.getString(bucketCol) ?: tr(R.string.other_folder),
                     fileName = c.getString(nameCol).orEmpty(),
                     isDevice = true,
                     deviceFolder = folderOf(c.getString(dataCol)),

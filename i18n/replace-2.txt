@@ -1,0 +1,165 @@
+FILE download/Downloader.kt
+- message = "Отменено") }
++ message = tr(R.string.canceled)) }
+- message = "Обновление плагина загрузки…") }
++ message = tr(R.string.dl_updating_plugin)) }
+- message = "Получение информации…") }
++ message = tr(R.string.dl_fetching_info)) }
+- if (count > 1) "$m • $index из $count" else m
++ if (count > 1) tr(R.string.dl_item_of, m ?: "", index, count) else m
+- if (media.size > 1) "Сохранение ${i + 1} из ${media.size}…" else "Сохранение в медиатеку…"
++ if (media.size > 1) tr(R.string.dl_saving_n, i + 1, media.size) else tr(R.string.dl_saving)
+- ?: playlistTitle ?: "Плейлист"
++ ?: playlistTitle ?: tr(R.string.playlist)
+- doneMessage = "Микс • ${saved.size} треков • ${totals(saved)}"
++ doneMessage = tr(R.string.dl_done_mix, trn(R.plurals.tracks, saved.size), totals(saved))
+- doneMessage = "Список • ${saved.size} видео • ${totals(saved)}"
++ doneMessage = tr(R.string.dl_done_list, trn(R.plurals.videos, saved.size), totals(saved))
+- doneMessage += " (часть роликов недоступна)"
++ doneMessage += " " + tr(R.string.dl_some_unavailable)
+- "Не удалось сохранить файл: ${t.message}"
++ tr(R.string.dl_save_failed, t.message ?: "")
+- ext.ifEmpty { "Аудио" }
++ ext.ifEmpty { tr(R.string.audio) }
+- parts += "$it кбит/с"
++ parts += tr(R.string.kbps, it)
+- parts += "Видео"
++ parts += tr(R.string.tab_video)
+- "${min / 60} ч ${min % 60} мин"
++ tr(R.string.hours_minutes, min / 60, min % 60)
+- .ifBlank { "Эпизод ${i + 1}" }
++ .ifBlank { tr(R.string.chapter_n, i + 1) }
+- -> "Конвертация аудио…"
++ -> tr(R.string.ph_extract)
+- -> "Объединение видео и звука…"
++ -> tr(R.string.ph_merge)
+- -> "Добавление обложки…"
++ -> tr(R.string.ph_thumbnail)
+- -> "Запись тегов…"
++ -> tr(R.string.ph_metadata)
+- -> "Добавление субтитров…"
++ -> tr(R.string.ph_subtitles)
+- -> "Проверка файла…"
++ -> tr(R.string.ph_fixup)
+- -> "Перепаковка видео…"
++ -> tr(R.string.ph_remux)
+- line.contains('%') -> "Загрузка…"
++ line.contains('%') -> tr(R.string.downloading)
+- "Нет подключения к интернету" to
++ tr(R.string.err_no_internet) to
+- "Видео недоступно (приватное)" to
++ tr(R.string.err_private) to
+- "Видео недоступно или удалено" to
++ tr(R.string.err_unavailable) to
+- "Видео только для спонсоров канала" to
++ tr(R.string.err_members) to
+- ?: "Не удалось скачать") to
++ ?: tr(R.string.download_failed)) to
+FILE ui/download/DownloadScreen.kt
+- val VIDEO_QUALITIES = listOf(0 to "Лучшее",
++ val VIDEO_QUALITIES: List<Pair<Int, String>> get() = listOf(0 to tr(R.string.quality_best),
+- Text("Загрузки", fontWeight
++ Text(tr(R.string.tab_downloads), fontWeight
+- { Text("Очистить") }
++ { Text(tr(R.string.action_clear)) }
+- Icon(Icons.Rounded.Settings, "Настройки")
++ Icon(Icons.Rounded.Settings, tr(R.string.settings))
+- Text("Ссылка на YouTube или YouTube Music")
++ Text(tr(R.string.link_hint))
+- "Буфер обмена пуст"
++ tr(R.string.clipboard_empty)
+- Icon(Icons.Rounded.ContentPaste, "Вставить")
++ Icon(Icons.Rounded.ContentPaste, tr(R.string.action_paste))
+- Icon(Icons.Rounded.Close, "Очистить")
++ Icon(Icons.Rounded.Close, tr(R.string.action_clear))
+- Text("Поддерживаются ссылки youtube.com, youtu.be и music.youtube.com")
++ Text(tr(R.string.link_unsupported))
+- ) { Text("Аудио") }
++ ) { Text(tr(R.string.audio)) }
+- ) { Text("Видео") }
++ ) { Text(tr(R.string.tab_video)) }
+- if (kind == DownloadKind.AUDIO) "Формат аудио" else "Качество видео",
++ if (kind == DownloadKind.AUDIO) tr(R.string.audio_format) else tr(R.string.video_quality),
+- "Сохранить как",
++ tr(R.string.save_as),
+- OptionChip("Музыку", !asPodcast)
++ OptionChip(tr(R.string.save_as_music), !asPodcast)
+- OptionChip("Подкаст", asPodcast)
++ OptionChip(tr(R.string.save_as_podcast), asPodcast)
+- title = "Скачать весь плейлист",
++ title = tr(R.string.whole_playlist),
+- subtitle = if (kind == DownloadKind.AUDIO) "Сохранится как микс в разделе «Музыка → Миксы»"
++ subtitle = if (kind == DownloadKind.AUDIO) tr(R.string.whole_playlist_mix)
+- else "Сохранится как отдельный список в разделе «Видео → Списки»",
++ else tr(R.string.whole_playlist_list),
+- Text(if (kind == DownloadKind.AUDIO) "Скачать аудио" else "Скачать видео", fontWeight
++ Text(if (kind == DownloadKind.AUDIO) tr(R.string.download_audio) else tr(R.string.download_video), fontWeight
+- "Скачивайте только то, на что у вас есть права.",
++ tr(R.string.rights_notice),
+- Text("Загрузка в фоне")
++ Text(tr(R.string.bg_title))
+- "Чтобы загрузка не останавливалась, когда вы уходите из приложения или гаснет экран, " +
++ tr(R.string.bg_text) +
+- "разрешите OFFPlayer работать без ограничений батареи." +
++ "" +
+- if (isXiaomi) "\n\nНа Xiaomi также откройте «Настройки приложения» → «Контроль активности» и выберите «Нет ограничений»." else ""
++ if (isXiaomi) "\n\n" + tr(R.string.bg_xiaomi) else ""
+- }) { Text("Разрешить") }
++ }) { Text(tr(R.string.action_allow)) }
+- }) { Text("Настройки приложения") }
++ }) { Text(tr(R.string.app_settings)) }
+- { Text("Не сейчас") }
++ { Text(tr(R.string.not_now)) }
+- if (task.longAudioIds.size > 1) "Это длинные аудио. Куда их сохранить?" else "Это длинное аудио. Куда его сохранить?",
++ tr(R.string.save_as),
+- Text("В музыку")
++ Text(tr(R.string.save_as_music))
+- Text("В подкасты")
++ Text(tr(R.string.save_as_podcast))
+- "Возможно, устарел плагин загрузки (YouTube часто меняет сайт). Попробуйте принудительно обновить его." to "Обновить и повторить"
++ tr(R.string.fail_plugin) to tr(R.string.update_and_retry)
+- "Не удалось скачать даже после обновления плагина. Пожалуйста, сообщите об этом разработчику — приложите отчёт." to "Скопировать отчёт"
++ tr(R.string.fail_after_update) to tr(R.string.copy_report)
+- "Отчёт скопирован — отправьте его разработчику"
++ tr(R.string.report_copied)
+- DownloadStatus.QUEUED -> "В очереди"
++ DownloadStatus.QUEUED -> tr(R.string.queued)
+- append(task.message ?: "Загрузка…")
++ append(task.message ?: tr(R.string.downloading))
+- append(" • осталось ${formatDuration(task.etaSec * 1000)}")
++ append(" • " + tr(R.string.time_left, formatDuration(task.etaSec * 1000)))
+- Icon(Icons.Rounded.Close, "Отменить")
++ Icon(Icons.Rounded.Close, tr(R.string.action_cancel))
+- Icon(Icons.Rounded.Refresh, "Повторить")
++ Icon(Icons.Rounded.Refresh, tr(R.string.action_retry))
+- Icon(Icons.Rounded.Close, "Убрать")
++ Icon(Icons.Rounded.Close, tr(R.string.action_remove))
+FILE ui/download/ShareSheet.kt
+- "MP3", "совместим со всем"),
++ "MP3", tr(R.string.fmt_mp3_note)),
+- "M4A", "быстро, без перекодирования"),
++ "M4A", tr(R.string.fmt_m4a_note)),
+- "Opus", "компактный"),
++ "Opus", tr(R.string.fmt_opus_note)),
+- "v:0", "Лучшее"))
++ "v:0", tr(R.string.quality_best)))
+- if (loading) "Получение сведений…" else "Скачать с YouTube",
++ if (loading) tr(R.string.dl_fetching_info) else tr(R.string.download_from_youtube),
+- ) { Text("Аудио") }
++ ) { Text(tr(R.string.audio)) }
+- ) { Text("Видео") }
++ ) { Text(tr(R.string.tab_video)) }
+- Text("Сохранить как", style
++ Text(tr(R.string.save_as), style
+- SheetChip("Музыку", !asPodcast)
++ SheetChip(tr(R.string.save_as_music), !asPodcast)
+- SheetChip("Подкаст", asPodcast)
++ SheetChip(tr(R.string.save_as_podcast), asPodcast)
+- if (tab == DownloadKind.AUDIO) "Весь плейлист — как микс" else "Весь плейлист — как список",
++ if (tab == DownloadKind.AUDIO) tr(R.string.whole_playlist_as_mix) else tr(R.string.whole_playlist_as_list),
+- Text("Открыть OFFPlayer")
++ Text(tr(R.string.open_offplayer))
+- "Загрузка добавлена в OFFPlayer"
++ tr(R.string.download_added)
+- Text("Скачать", fontWeight
++ Text(tr(R.string.action_download), fontWeight

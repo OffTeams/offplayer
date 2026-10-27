@@ -1,5 +1,8 @@
 package com.offplayer.app.ui.download
 
+import com.offplayer.app.tr
+import com.offplayer.app.R
+
 import com.offplayer.app.ui.theme.AppShapes
 import android.content.ClipboardManager
 import android.content.Context
@@ -101,7 +104,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import com.offplayer.app.ui.theme.Accent
 import kotlinx.coroutines.launch
 
-val VIDEO_QUALITIES = listOf(0 to "Лучшее", 2160 to "4K", 1440 to "1440p", 1080 to "1080p", 720 to "720p", 480 to "480p", 360 to "360p")
+val VIDEO_QUALITIES: List<Pair<Int, String>> get() = listOf(0 to tr(R.string.quality_best), 2160 to "4K", 1440 to "1440p", 1080 to "1080p", 720 to "720p", 480 to "480p", 360 to "360p")
 val AUDIO_FORMATS = listOf("mp3" to "MP3", "m4a" to "M4A (AAC)", "opus" to "Opus")
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -145,13 +148,13 @@ fun DownloadScreen(pendingUrl: String?, onUrlConsumed: () -> Unit) {
         item {
             TopAppBar(
                 expandedHeight = 52.dp, // компактнее стандартных 64dp
-                title = { Text("Загрузки", fontWeight = FontWeight.Bold) },
+                title = { Text(tr(R.string.tab_downloads), fontWeight = FontWeight.Bold) },
                 actions = {
                     if (tasks.any { it.status != DownloadStatus.QUEUED && it.status != DownloadStatus.RUNNING }) {
-                        TextButton(onClick = Downloader::clearFinished) { Text("Очистить") }
+                        TextButton(onClick = Downloader::clearFinished) { Text(tr(R.string.action_clear)) }
                     }
                     IconButton(onClick = { UiEvents.openSettings.value = SettingsPage.ROOT }) {
-                        Icon(Icons.Rounded.Settings, "Настройки")
+                        Icon(Icons.Rounded.Settings, tr(R.string.settings))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
@@ -162,7 +165,7 @@ fun DownloadScreen(pendingUrl: String?, onUrlConsumed: () -> Unit) {
                 OutlinedTextField(
                     value = url,
                     onValueChange = { url = it },
-                    label = { Text("Ссылка на YouTube или YouTube Music") },
+                    label = { Text(tr(R.string.link_hint)) },
                     placeholder = { Text("https://youtu.be/…") },
                     leadingIcon = { Icon(Icons.Rounded.Link, null) },
                     trailingIcon = {
@@ -171,18 +174,18 @@ fun DownloadScreen(pendingUrl: String?, onUrlConsumed: () -> Unit) {
                                 val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                                 val text = cm.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(context)?.toString()
                                 if (text.isNullOrBlank()) {
-                                    Toast.makeText(context, "Буфер обмена пуст", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, tr(R.string.clipboard_empty), Toast.LENGTH_SHORT).show()
                                 } else {
                                     url = Regex("""https?://\S+""").find(text)?.value ?: text.trim()
                                 }
-                            }) { Icon(Icons.Rounded.ContentPaste, "Вставить") }
+                            }) { Icon(Icons.Rounded.ContentPaste, tr(R.string.action_paste)) }
                         } else {
-                            IconButton(onClick = { url = "" }) { Icon(Icons.Rounded.Close, "Очистить") }
+                            IconButton(onClick = { url = "" }) { Icon(Icons.Rounded.Close, tr(R.string.action_clear)) }
                         }
                     },
                     isError = url.isNotBlank() && !urlValid,
                     supportingText = if (url.isNotBlank() && !urlValid) {
-                        { Text("Поддерживаются ссылки youtube.com, youtu.be и music.youtube.com") }
+                        { Text(tr(R.string.link_unsupported)) }
                     } else null,
                     singleLine = true,
                     shape = AppShapes.Card,
@@ -198,18 +201,18 @@ fun DownloadScreen(pendingUrl: String?, onUrlConsumed: () -> Unit) {
                         onClick = { kind = DownloadKind.AUDIO },
                         shape = SegmentedButtonDefaults.itemShape(0, 2),
                         icon = { Icon(Icons.Rounded.MusicNote, null, Modifier.size(18.dp)) },
-                    ) { Text("Аудио") }
+                    ) { Text(tr(R.string.audio)) }
                     SegmentedButton(
                         selected = kind == DownloadKind.VIDEO,
                         onClick = { kind = DownloadKind.VIDEO },
                         shape = SegmentedButtonDefaults.itemShape(1, 2),
                         icon = { Icon(Icons.Rounded.Movie, null, Modifier.size(18.dp)) },
-                    ) { Text("Видео") }
+                    ) { Text(tr(R.string.tab_video)) }
                 }
                 Spacer(Modifier.height(12.dp))
 
                 Text(
-                    if (kind == DownloadKind.AUDIO) "Формат аудио" else "Качество видео",
+                    if (kind == DownloadKind.AUDIO) tr(R.string.audio_format) else tr(R.string.video_quality),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -231,7 +234,7 @@ fun DownloadScreen(pendingUrl: String?, onUrlConsumed: () -> Unit) {
                 Column(Modifier.padding(horizontal = 16.dp).padding(top = 12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            "Сохранить как",
+                            tr(R.string.save_as),
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -239,8 +242,8 @@ fun DownloadScreen(pendingUrl: String?, onUrlConsumed: () -> Unit) {
                     }
                     Spacer(Modifier.height(4.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OptionChip("Музыку", !asPodcast) { asPodcast = false }
-                        OptionChip("Подкаст", asPodcast) { asPodcast = true }
+                        OptionChip(tr(R.string.save_as_music), !asPodcast) { asPodcast = false }
+                        OptionChip(tr(R.string.save_as_podcast), asPodcast) { asPodcast = true }
                     }
                 }
             }
@@ -249,9 +252,9 @@ fun DownloadScreen(pendingUrl: String?, onUrlConsumed: () -> Unit) {
                 // Плейлист целиком: видео → список, музыка → микс
                 if (isPlaylist) {
                     OptionSwitch(
-                        title = "Скачать весь плейлист",
-                        subtitle = if (kind == DownloadKind.AUDIO) "Сохранится как микс в разделе «Музыка → Миксы»"
-                        else "Сохранится как отдельный список в разделе «Видео → Списки»",
+                        title = tr(R.string.whole_playlist),
+                        subtitle = if (kind == DownloadKind.AUDIO) tr(R.string.whole_playlist_mix)
+                        else tr(R.string.whole_playlist_list),
                         checked = wholePlaylist,
                         onChange = { wholePlaylist = it },
                     )
@@ -288,11 +291,11 @@ fun DownloadScreen(pendingUrl: String?, onUrlConsumed: () -> Unit) {
                 ) {
                     Icon(Icons.Rounded.Download, null)
                     Spacer(Modifier.width(8.dp))
-                    Text(if (kind == DownloadKind.AUDIO) "Скачать аудио" else "Скачать видео", fontWeight = FontWeight.SemiBold)
+                    Text(if (kind == DownloadKind.AUDIO) tr(R.string.download_audio) else tr(R.string.download_video), fontWeight = FontWeight.SemiBold)
                 }
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    "Скачивайте только то, на что у вас есть права.",
+                    tr(R.string.rights_notice),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -327,12 +330,12 @@ private fun BackgroundWorkDialog(onDismiss: () -> Unit) {
     val isXiaomi = Build.MANUFACTURER.equals("Xiaomi", true) || Build.MANUFACTURER.equals("Redmi", true) || Build.MANUFACTURER.equals("POCO", true)
     AlertDialog(
         onDismissRequest = close,
-        title = { Text("Загрузка в фоне") },
+        title = { Text(tr(R.string.bg_title)) },
         text = {
             Text(
-                "Чтобы загрузка не останавливалась, когда вы уходите из приложения или гаснет экран, " +
-                    "разрешите OFFPlayer работать без ограничений батареи." +
-                    if (isXiaomi) "\n\nНа Xiaomi также откройте «Настройки приложения» → «Контроль активности» и выберите «Нет ограничений»." else ""
+                tr(R.string.bg_text) +
+                    "" +
+                    if (isXiaomi) "\n\n" + tr(R.string.bg_xiaomi) else ""
             )
         },
         confirmButton = {
@@ -345,7 +348,7 @@ private fun BackgroundWorkDialog(onDismiss: () -> Unit) {
                 }.onFailure {
                     runCatching { context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
                 }
-            }) { Text("Разрешить") }
+            }) { Text(tr(R.string.action_allow)) }
         },
         dismissButton = {
             if (isXiaomi) {
@@ -354,9 +357,9 @@ private fun BackgroundWorkDialog(onDismiss: () -> Unit) {
                     runCatching {
                         context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}")))
                     }
-                }) { Text("Настройки приложения") }
+                }) { Text(tr(R.string.app_settings)) }
             } else {
-                TextButton(onClick = close) { Text("Не сейчас") }
+                TextButton(onClick = close) { Text(tr(R.string.not_now)) }
             }
         },
     )
@@ -369,7 +372,7 @@ private fun PlacementChoice(task: DownloadTask) {
     val scope = rememberCoroutineScope()
     Column(Modifier.padding(top = 10.dp)) {
         Text(
-            if (task.longAudioIds.size > 1) "Это длинные аудио. Куда их сохранить?" else "Это длинное аудио. Куда его сохранить?",
+            tr(R.string.save_as),
             style = MaterialTheme.typography.bodyMedium,
         )
         Spacer(Modifier.height(8.dp))
@@ -380,7 +383,7 @@ private fun PlacementChoice(task: DownloadTask) {
             ) {
                 Icon(Icons.Rounded.MusicNote, null, Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("В музыку")
+                Text(tr(R.string.save_as_music))
             }
             Button(
                 onClick = { scope.launch { Downloader.placeLongAudio(context, task.id, podcast = true) } },
@@ -389,7 +392,7 @@ private fun PlacementChoice(task: DownloadTask) {
             ) {
                 Icon(Icons.Rounded.Podcasts, null, Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("В подкасты")
+                Text(tr(R.string.save_as_podcast))
             }
         }
     }
@@ -404,9 +407,9 @@ private fun FailureHelp(task: DownloadTask) {
     val context = LocalContext.current
     val (text, action) = when (task.failure) {
         FailureKind.PLUGIN ->
-            "Возможно, устарел плагин загрузки (YouTube часто меняет сайт). Попробуйте принудительно обновить его." to "Обновить и повторить"
+            tr(R.string.fail_plugin) to tr(R.string.update_and_retry)
         FailureKind.AFTER_UPDATE ->
-            "Не удалось скачать даже после обновления плагина. Пожалуйста, сообщите об этом разработчику — приложите отчёт." to "Скопировать отчёт"
+            tr(R.string.fail_after_update) to tr(R.string.copy_report)
         else -> return
     }
     Spacer(Modifier.height(10.dp))
@@ -425,7 +428,7 @@ private fun FailureHelp(task: DownloadTask) {
                 } else {
                     val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                     cm.setPrimaryClip(android.content.ClipData.newPlainText("OFFPlayer", Downloader.report(context, task)))
-                    Toast.makeText(context, "Отчёт скопирован — отправьте его разработчику", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, tr(R.string.report_copied), Toast.LENGTH_LONG).show()
                 }
             },
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
@@ -497,11 +500,11 @@ private fun DownloadCard(task: DownloadTask, modifier: Modifier = Modifier) {
                 ) {
                     Text(task.title ?: task.url, maxLines = 2, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
                     val status = when (task.status) {
-                        DownloadStatus.QUEUED -> "В очереди"
+                        DownloadStatus.QUEUED -> tr(R.string.queued)
                         DownloadStatus.RUNNING -> buildString {
-                            append(task.message ?: "Загрузка…")
+                            append(task.message ?: tr(R.string.downloading))
                             if (task.progress > 0f) append(" ${(task.progress * 100).toInt()}%")
-                            if (task.etaSec > 0) append(" • осталось ${formatDuration(task.etaSec * 1000)}")
+                            if (task.etaSec > 0) append(" • " + tr(R.string.time_left, formatDuration(task.etaSec * 1000)))
                         }
                         else -> task.message.orEmpty()
                     }
@@ -509,11 +512,11 @@ private fun DownloadCard(task: DownloadTask, modifier: Modifier = Modifier) {
                 }
                 when (task.status) {
                     DownloadStatus.QUEUED, DownloadStatus.RUNNING ->
-                        IconButton(onClick = { Downloader.cancel(task.id) }) { Icon(Icons.Rounded.Close, "Отменить") }
+                        IconButton(onClick = { Downloader.cancel(task.id) }) { Icon(Icons.Rounded.Close, tr(R.string.action_cancel)) }
                     DownloadStatus.FAILED, DownloadStatus.CANCELED ->
-                        IconButton(onClick = { Downloader.retry(context, task.id) }) { Icon(Icons.Rounded.Refresh, "Повторить") }
+                        IconButton(onClick = { Downloader.retry(context, task.id) }) { Icon(Icons.Rounded.Refresh, tr(R.string.action_retry)) }
                     DownloadStatus.DONE ->
-                        IconButton(onClick = { Downloader.remove(task.id) }) { Icon(Icons.Rounded.Close, "Убрать") }
+                        IconButton(onClick = { Downloader.remove(task.id) }) { Icon(Icons.Rounded.Close, tr(R.string.action_remove)) }
                 }
             }
             if (task.status == DownloadStatus.FAILED) FailureHelp(task)

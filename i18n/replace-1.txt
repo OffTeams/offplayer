@@ -1,0 +1,168 @@
+FILE MainActivity.kt
+- "Назад", 1)
++ tr(R.string.action_back), 1)
+- "Пауза", 2)
++ tr(R.string.action_pause), 2)
+- "Играть", 2)
++ tr(R.string.action_play), 2)
+- "Вперёд", 3)
++ tr(R.string.action_forward), 3)
+- "Устройство не поддерживает «картинку в картинке»"
++ tr(R.string.pip_unsupported)
+FILE ShareActivity.kt
+- "Поддерживаются ссылки YouTube и YouTube Music"
++ tr(R.string.share_unsupported)
+FILE model/Models.kt
+- .ifEmpty { "Память устройства" }
++ .ifEmpty { com.offplayer.app.tr(com.offplayer.app.R.string.device_storage) }
+FILE data/MediaRepository.kt
+- "Перенос медиатеки в защищённое хранилище: ${i + 1} из ${owned.size}"
++ tr(R.string.migration_progress, i + 1, owned.size)
+- ?: "Неизвестный исполнитель"
++ ?: tr(R.string.unknown_artist)
+- ?: "Без названия"
++ ?: tr(R.string.untitled)
+- ?: "Другое"
++ ?: tr(R.string.other_folder)
+FILE data/PlaylistStore.kt
+- .ifEmpty { "Новый плейлист" }
++ .ifEmpty { tr(R.string.new_playlist) }
+FILE data/VideoLibraryStore.kt
+- .ifEmpty { "Новый список" }
++ .ifEmpty { tr(R.string.new_list) }
+- .ifEmpty { "Новая категория" }
++ .ifEmpty { tr(R.string.new_category) }
+FILE ui/DeleteMedia.kt
+- "Нет доступа к файлу"
++ tr(R.string.no_file_access)
+- "${req.count} видео"
++ trn(R.plurals.videos, req.count)
+- "Удалить файлы?"
++ tr(R.string.delete_files_q)
+- "Удалить видео?"
++ tr(R.string.delete_video_q)
+- "Удалить трек?"
++ tr(R.string.delete_track_q)
+- val from = if (req.deviceUris.isNotEmpty()) "с устройства" else "из медиатеки OFFPlayer"
++ val fromDevice = req.deviceUris.isNotEmpty()
+- Text("$what будут удалены $from без возможности восстановления.")
++ Text(tr(if (fromDevice) R.string.delete_body_device else R.string.delete_body_library, what))
+- Text("Удалить", color
++ Text(tr(R.string.action_delete), color
+- Text("Отмена")
++ Text(tr(R.string.action_cancel))
+- if (ids.size > 1) "Удалено файлов: ${ids.size}" else "Удалено"
++ if (ids.size > 1) tr(R.string.deleted_files, ids.size) else tr(R.string.deleted)
+FILE ui/DeviceTree.kt
+- "Не найден файловый менеджер. Папка: ${folder.path}"
++ tr(R.string.no_file_manager, folder.path)
+- if (expanded) "Свернуть" else "Развернуть"
++ if (expanded) tr(R.string.action_collapse) else tr(R.string.action_expand)
+- "Открыть в файловом менеджере"
++ tr(R.string.open_in_file_manager)
+- "Нет доступа к файлам устройства",
++ tr(R.string.no_device_access),
+- "Разрешите доступ к музыке и видео, чтобы показать файлы из памяти телефона.",
++ tr(R.string.no_device_access_desc),
+- Text("Разрешить")
++ Text(tr(R.string.action_allow))
+FILE ui/Common.kt
+- "%.1f ГБ".format(bytes / (1L shl 30).toDouble())
++ tr(R.string.size_gb, bytes / (1L shl 30).toDouble())
+- "%.0f МБ".format(bytes / (1L shl 20).toDouble())
++ tr(R.string.size_mb, bytes / (1L shl 20).toDouble())
+- "%.0f КБ".format(bytes / 1024.0)
++ tr(R.string.size_kb, bytes / 1024.0)
+- fun tracksCount(n: Int) = plural(n, "трек", "трека", "треков")
++ fun tracksCount(n: Int) = trn(R.plurals.tracks, n)
+- "Выбран"
++ tr(R.string.selected)
+- "Ещё"
++ tr(R.string.more)
+- Text("Воспроизвести далее")
++ Text(tr(R.string.play_next))
+- "Будет воспроизведено следующим"
++ tr(R.string.will_play_next)
+- Text("Добавить в очередь")
++ Text(tr(R.string.add_to_queue))
+- "Добавлено в очередь"
++ tr(R.string.added_to_queue)
+- Text("Добавить в плейлист")
++ Text(tr(R.string.add_to_playlist))
+- "Удалить с устройства"
++ tr(R.string.delete_from_device)
+- else "Удалить", color
++ else tr(R.string.action_delete), color
+- "Добавлено в «${p.name}»"
++ tr(R.string.added_to, p.name)
+- Text("Новый плейлист")
++ Text(tr(R.string.new_playlist))
+- "Создан «${p.name}»"
++ tr(R.string.created, p.name)
+- Text("Создать")
++ Text(tr(R.string.action_create))
+- Text("Отмена")
++ Text(tr(R.string.action_cancel))
+FILE ui/MainScreen.kt
+- Text("Открыть", style
++ Text(tr(R.string.action_open), style
+FILE video/VideoController.kt
+- ?: "Видео"
++ ?: tr(R.string.tab_video)
+FILE download/DownloadService.kt
+- NotificationChannel(CHANNEL, "Загрузки",
++ NotificationChannel(CHANNEL, tr(R.string.tab_downloads),
+- NotificationChannel(CHANNEL_DONE, "Загрузка завершена",
++ NotificationChannel(CHANNEL_DONE, tr(R.string.download_finished),
+- buildNotification("Подготовка…", 0f, true)
++ buildNotification(tr(R.string.preparing), 0f, true)
+- "Ошибка yt-dlp: ${t.message?.take(150)}"
++ tr(R.string.ytdlp_error, t.message?.take(150) ?: "")
+- if (indeterminate) "Загрузка…" else
++ if (indeterminate) tr(R.string.downloading) else
+- task.message ?: "Загрузка завершена" else task.message ?: "Не удалось скачать"
++ task.message ?: tr(R.string.download_finished) else task.message ?: tr(R.string.download_failed)
+- task.title ?: "Загрузка завершена" else "Не удалось скачать"
++ task.title ?: tr(R.string.download_finished) else tr(R.string.download_failed)
+FILE update/AppUpdater.kt
+- UpdateState.Error("Не удалось проверить обновления. Проверьте подключение к интернету")
++ UpdateState.Error(tr(R.string.upd_check_failed))
+- t.message ?: "Не удалось скачать обновление"
++ t.message ?: tr(R.string.upd_download_failed)
+- error("Сервер ответил ${conn.responseCode}")
++ error(tr(R.string.upd_server, conn.responseCode))
+- error("Файл скачался не полностью")
++ error(tr(R.string.upd_incomplete))
+- error("Файл обновления повреждён")
++ error(tr(R.string.upd_corrupt))
+- error("Файл обновления от другого приложения")
++ error(tr(R.string.upd_other_app))
+- error("В релизе не более новая версия")
++ error(tr(R.string.upd_not_newer))
+- error("Подпись обновления не совпадает — установка отменена")
++ error(tr(R.string.upd_bad_signature))
+- onInstallFailed("Установка отменена")
++ onInstallFailed(tr(R.string.upd_install_cancelled))
+- ?.let { "Не удалось установить: $it" }
++ ?.let { tr(R.string.upd_install_failed_msg, it) }
+- ?: "Не удалось установить обновление"
++ ?: tr(R.string.upd_install_failed)
+FILE update/UpdateDialog.kt
+- Text("Доступна версия ${info.version}")
++ Text(tr(R.string.upd_available, info.version))
+- "Сейчас установлена ${AppUpdater.currentVersion(context)} • размер обновления ${formatSize(info.sizeBytes)}",
++ tr(R.string.upd_current, AppUpdater.currentVersion(context), formatSize(info.sizeBytes)),
+- Text("Загрузка… ${(s.progress * 100).toInt()}%", style
++ Text(tr(R.string.upd_downloading, (s.progress * 100).toInt()), style
+- Text("Подтвердите установку в системном окне", style
++ Text(tr(R.string.upd_confirm), style
+- "Чтобы установить обновление, разрешите OFFPlayer устанавливать приложения — один раз, в настройках телефона.",
++ tr(R.string.upd_need_permission),
+- Text("Разрешить")
++ Text(tr(R.string.action_allow))
+- Text("Повторить")
++ Text(tr(R.string.action_retry))
+- Text("Обновить")
++ Text(tr(R.string.action_update))
+- Text("Позже")
++ Text(tr(R.string.action_later))

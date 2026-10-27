@@ -1,5 +1,8 @@
 package com.offplayer.app.update
 
+import com.offplayer.app.tr
+import com.offplayer.app.R
+
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -104,7 +107,7 @@ object AppUpdater {
             val result = runCatching { fetchLatest(app) }
             prefs(app).edit().putLong(KEY_LAST_CHECK, System.currentTimeMillis()).apply()
             val info = result.getOrElse {
-                _state.value = if (manual) UpdateState.Error("Не удалось проверить обновления. Проверьте подключение к интернету") else UpdateState.Idle
+                _state.value = if (manual) UpdateState.Error(tr(R.string.upd_check_failed)) else UpdateState.Idle
                 return@launch
             }
             val newer = info != null && isNewer(info.version, currentVersion(app))
@@ -151,7 +154,7 @@ object AppUpdater {
                 install(app, file)
             } catch (t: Throwable) {
                 file.delete()
-                _state.value = UpdateState.Error(t.message ?: "Не удалось скачать обновление", info)
+                _state.value = UpdateState.Error(t.message ?: tr(R.string.upd_download_failed), info)
             }
         }
     }
@@ -231,7 +234,7 @@ object AppUpdater {
         conn.readTimeout = 30_000
         conn.setRequestProperty("User-Agent", "OFFPlayer")
         try {
-            if (conn.responseCode !in 200..299) error("Сервер ответил ${conn.responseCode}")
+            if (conn.responseCode !in 200..299) error(tr(R.string.upd_server, conn.responseCode))
             val total = conn.contentLengthLong.takeIf { it > 0 } ?: expected
             var done = 0L
             var lastReport = 0L
@@ -250,7 +253,7 @@ object AppUpdater {
                     }
                 }
             }
-            if (expected > 0 && file.length() != expected) error("Файл скачался не полностью")
+            if (expected > 0 && file.length() != expected) error(tr(R.string.upd_incomplete))
             onProgress(1f)
         } finally {
             conn.disconnect()
@@ -262,13 +265,13 @@ object AppUpdater {
         val pm = context.packageManager
         @Suppress("DEPRECATION")
         val flags = if (Build.VERSION.SDK_INT >= 28) PackageManager.GET_SIGNING_CERTIFICATES else PackageManager.GET_SIGNATURES
-        val archive = pm.getPackageArchiveInfo(file.absolutePath, flags) ?: error("Файл обновления повреждён")
-        if (archive.packageName != context.packageName) error("Файл обновления от другого приложения")
+        val archive = pm.getPackageArchiveInfo(file.absolutePath, flags) ?: error(tr(R.string.upd_corrupt))
+        if (archive.packageName != context.packageName) error(tr(R.string.upd_other_app))
         val installed = pm.getPackageInfo(context.packageName, flags)
-        if (versionCode(archive) <= versionCode(installed)) error("В релизе не более новая версия")
+        if (versionCode(archive) <= versionCode(installed)) error(tr(R.string.upd_not_newer))
         val a = certs(archive)
         val b = certs(installed)
-        if (a.isEmpty() || a.intersect(b).isEmpty()) error("Подпись обновления не совпадает — установка отменена")
+        if (a.isEmpty() || a.intersect(b).isEmpty()) error(tr(R.string.upd_bad_signature))
     }
 
     @Suppress("DEPRECATION")
@@ -318,10 +321,10 @@ class UpdateInstallReceiver : BroadcastReceiver() {
                 context.startActivity(confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             }
             PackageInstaller.STATUS_SUCCESS -> Unit // приложение перезапустится уже обновлённым
-            PackageInstaller.STATUS_FAILURE_ABORTED -> AppUpdater.onInstallFailed("Установка отменена")
+            PackageInstaller.STATUS_FAILURE_ABORTED -> AppUpdater.onInstallFailed(tr(R.string.upd_install_cancelled))
             else -> AppUpdater.onInstallFailed(
-                intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)?.let { "Не удалось установить: $it" }
-                    ?: "Не удалось установить обновление"
+                intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)?.let { tr(R.string.upd_install_failed_msg, it) }
+                    ?: tr(R.string.upd_install_failed)
             )
         }
     }

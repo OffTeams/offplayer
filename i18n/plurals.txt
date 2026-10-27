@@ -1,0 +1,15 @@
+# key|quantity|ru|en|uk|de|es|fr|pt|ko|ja   (пусто — формы нет в языке)
+tracks|one|%d трек|%d track|%d трек|%d Titel|%d pista|%d titre|%d faixa||
+tracks|few|%d трека||%d треки||||||
+tracks|many|%d треков||%d треків||||||
+tracks|other|%d трека|%d tracks|%d треку|%d Titel|%d pistas|%d titres|%d faixas|%d곡|%d曲
+videos|one|%d видео|%d video|%d відео|%d Video|%d vídeo|%d vidéo|%d vídeo||
+videos|few|%d видео||%d відео||||||
+videos|many|%d видео||%d відео||||||
+videos|other|%d видео|%d videos|%d відео|%d Videos|%d vídeos|%d vidéos|%d vídeos|동영상 %d개|動画 %d本
+minutes|one|%d минута|%d minute|%d хвилина|%d Minute|%d minuto|%d minute|%d minuto||
+minutes|few|%d минуты||%d хвилини||||||
+minutes|many|%d минут||%d хвилин||||||
+minutes|other|%d минуты|%d minutes|%d хвилини|%d Minuten|%d minutos|%d minutes|%d minutos|%d분|%d分
+tracks_selected|one|Выбрано: %d||||||||
+tracks_selected|other|Выбрано: %d|Selected: %d|Вибрано: %d|Ausgewählt: %d|Seleccionados: %d|Sélectionnés : %d|Selecionados: %d|%d개 선택됨|%d件選択

@@ -1,5 +1,8 @@
 package com.offplayer.app.ui.settings
 
+import com.offplayer.app.tr
+import com.offplayer.app.R
+
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -89,7 +92,18 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.offplayer.app.data.AppSettings
 import com.offplayer.app.data.CoverStyle
-import com.offplayer.app.data.DOWNLOAD_LANGUAGES
+import android.app.Activity
+import com.offplayer.app.L
+import androidx.compose.material.icons.rounded.Language
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.OutlinedTextField
+import com.offplayer.app.data.DOWNLOAD_LANGUAGE_CODES
+import com.offplayer.app.data.languageName
 import com.offplayer.app.data.DeviceMediaMode
 import com.offplayer.app.data.LibraryStore
 import com.offplayer.app.data.MediaRepository
@@ -113,14 +127,16 @@ import com.offplayer.app.ui.formatSize
 import com.offplayer.app.ui.theme.AppShapes
 
 /** Страницы настроек: корневой список разделов и сами разделы. */
-enum class SettingsPage(val title: String) {
-    ROOT("Настройки"),
-    GENERAL("Общие"),
-    MUSIC("Музыкальный плеер"),
-    VIDEO("Видеоплеер"),
-    SPONSORBLOCK("SponsorBlock"),
-    DOWNLOADS("Загрузки"),
-    ABOUT("О приложении"),
+enum class SettingsPage(@androidx.annotation.StringRes private val res: Int) {
+    ROOT(R.string.settings),
+    GENERAL(R.string.set_general),
+    MUSIC(R.string.set_music_player),
+    VIDEO(R.string.set_video_player),
+    SPONSORBLOCK(R.string.sponsorblock),
+    DOWNLOADS(R.string.tab_downloads),
+    ABOUT(R.string.set_about);
+
+    val title: String get() = tr(res)
 }
 
 /**
@@ -188,7 +204,7 @@ private fun SettingsPageScaffold(title: String, onBack: () -> Unit, content: @Co
                 .padding(start = 4.dp, end = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Назад") }
+            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, tr(R.string.action_back)) }
             Spacer(Modifier.width(12.dp))
             Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
         }
@@ -207,27 +223,34 @@ private fun SettingsPageScaffold(title: String, onBack: () -> Unit, content: @Co
 
 @Composable
 private fun RootPage(open: (SettingsPage) -> Unit) {
-    Header("Приложение")
-    NavRow(Icons.Rounded.Settings, "Общие", "Тема оформления, медиатека") { open(SettingsPage.GENERAL) }
-    NavRow(Icons.Rounded.MusicNote, "Музыкальный плеер", "Обложка, порядок, повтор, кнопки плеера") { open(SettingsPage.MUSIC) }
-    NavRow(Icons.Rounded.Movie, "Видеоплеер", "Фон, скорость, жесты, эпизоды") { open(SettingsPage.VIDEO) }
-    NavRow(Icons.Rounded.FastForward, "SponsorBlock", "Что пропускать, о чём спрашивать") { open(SettingsPage.SPONSORBLOCK) }
-    NavRow(Icons.Rounded.Download, "Загрузки", "Качество, аудиодорожки, субтитры") { open(SettingsPage.DOWNLOADS) }
+    Header(tr(R.string.set_app))
+    NavRow(Icons.Rounded.Settings, tr(R.string.set_general), tr(R.string.set_general_desc)) { open(SettingsPage.GENERAL) }
+    NavRow(Icons.Rounded.MusicNote, tr(R.string.set_music_player), tr(R.string.set_music_player_desc)) { open(SettingsPage.MUSIC) }
+    NavRow(Icons.Rounded.Movie, tr(R.string.set_video_player), tr(R.string.set_video_player_desc)) { open(SettingsPage.VIDEO) }
+    NavRow(Icons.Rounded.FastForward, tr(R.string.sponsorblock), tr(R.string.set_sb_desc)) { open(SettingsPage.SPONSORBLOCK) }
+    NavRow(Icons.Rounded.Download, tr(R.string.tab_downloads), tr(R.string.set_downloads_desc)) { open(SettingsPage.DOWNLOADS) }
     Divider()
-    Header("Информация")
-    NavRow(Icons.Rounded.Info, "О приложении", "Версия, обновления, место в памяти") { open(SettingsPage.ABOUT) }
+    Header(tr(R.string.set_info))
+    NavRow(Icons.Rounded.Info, tr(R.string.set_about), tr(R.string.set_about_desc)) { open(SettingsPage.ABOUT) }
 }
 
 @Composable
 private fun GeneralPage() {
     val theme by AppSettings.themeMode.collectAsStateWithLifecycle()
-    Header("Оформление")
+    val language by L.language.collectAsStateWithLifecycle()
+    val activity = LocalContext.current as? Activity
+    Header(tr(R.string.set_appearance))
     ChoiceRow(
-        Icons.Rounded.DarkMode, "Тема", ThemeMode.entries.map { it to it.label }, theme,
+        Icons.Rounded.Language, tr(R.string.set_language),
+        L.LANGUAGES.map { it to if (it.isEmpty()) tr(R.string.language_system) else L.nativeName(it) }, language,
+        { tag -> if (tag != language && activity != null) L.set(activity, tag) },
+    )
+    ChoiceRow(
+        Icons.Rounded.DarkMode, tr(R.string.set_theme), ThemeMode.entries.map { it to it.label }, theme,
         AppSettings::setThemeMode,
     )
     Divider()
-    Header("Медиатека")
+    Header(tr(R.string.set_library))
     DeviceMediaRows()
 }
 
@@ -241,38 +264,38 @@ private fun MusicPage() {
     val sleep by AppSettings.showSleepTimer.collectAsStateWithLifecycle()
     val addPl by AppSettings.showAddToPlaylist.collectAsStateWithLifecycle()
     val source by AppSettings.saveSource.collectAsStateWithLifecycle()
-    Header("Обложка")
+    Header(tr(R.string.set_cover))
     // «Сменяемая» — стили листаются свайпом; конкретный стиль — только он, остальные скрыты
     ChoiceRow(
-        Icons.Rounded.Album, "Вид обложки",
-        listOf<CoverStyle?>(null).map { it to "Сменяемая" } + CoverStyle.entries.map { it to it.label },
+        Icons.Rounded.Album, tr(R.string.set_cover_style),
+        listOf<CoverStyle?>(null).map { it to tr(R.string.cover_switchable) } + CoverStyle.entries.map { it to it.label },
         if (locked) cover else null,
         { s -> if (s == null) AppSettings.setCoverLocked(false) else { AppSettings.setCoverStyle(s); AppSettings.setCoverLocked(true) } },
-        optionDescription = { if (it == null) "Свайп по обложке в плеере меняет стиль" else "Всегда этот стиль" },
+        optionDescription = { if (it == null) tr(R.string.cover_switchable_desc) else tr(R.string.cover_fixed_desc) },
     )
     Divider()
-    Header("Воспроизведение")
+    Header(tr(R.string.set_playback))
     ChoiceRow(
-        Icons.Rounded.Shuffle, "Порядок по умолчанию", PlayOrder.entries.map { it to it.label }, order,
+        Icons.Rounded.Shuffle, tr(R.string.set_default_order), PlayOrder.entries.map { it to it.label }, order,
         AppSettings::setPlayOrder, optionDescription = { it.description },
     )
     ChoiceRow(
-        Icons.Rounded.Repeat, "Повтор по умолчанию",
-        listOf(0 to "Выключен", 2 to "Очередь по кругу", 1 to "Один трек"), repeat, AppSettings::setDefaultRepeat,
+        Icons.Rounded.Repeat, tr(R.string.set_default_repeat),
+        listOf(0 to tr(R.string.repeat_mode_off), 2 to tr(R.string.repeat_mode_all), 1 to tr(R.string.repeat_mode_one)), repeat, AppSettings::setDefaultRepeat,
     )
     Divider()
-    Header("Плеер")
-    SwitchRow(Icons.Rounded.Bedtime, "Таймер сна", "Кнопка таймера сна в плеере", sleep, AppSettings::setShowSleepTimer)
-    SwitchRow(Icons.AutoMirrored.Rounded.PlaylistAdd, "Добавить в плейлист", "Кнопка добавления текущего трека в плейлист", addPl, AppSettings::setShowAddToPlaylist)
+    Header(tr(R.string.set_player))
+    SwitchRow(Icons.Rounded.Bedtime, tr(R.string.sleep_timer), tr(R.string.set_sleep_btn_desc), sleep, AppSettings::setShowSleepTimer)
+    SwitchRow(Icons.AutoMirrored.Rounded.PlaylistAdd, tr(R.string.add_to_playlist), tr(R.string.set_addpl_btn_desc), addPl, AppSettings::setShowAddToPlaylist)
     SwitchRow(
-        Icons.Rounded.Link, "Источник трека",
-        "Сохранять канал, с которого скачан трек, и показывать «Сейчас играет трек от:» со ссылкой на него",
+        Icons.Rounded.Link, tr(R.string.set_source),
+        tr(R.string.set_source_desc),
         source, AppSettings::setSaveSource,
     )
     SwitchRow(
         if (noisy) Icons.Rounded.HeadsetOff else Icons.Rounded.Headphones,
-        "Пауза при отключении наушников",
-        "Музыка и видео встают на паузу, когда наушники отключаются",
+        tr(R.string.set_pause_noisy),
+        tr(R.string.set_pause_noisy_desc),
         noisy, AppSettings::setPauseOnNoisy,
     )
 }
@@ -289,27 +312,27 @@ private fun VideoPage() {
     val step by AppSettings.seekStep.collectAsStateWithLifecycle()
     val chapters by AppSettings.showChapters.collectAsStateWithLifecycle()
 
-    Header("Воспроизведение")
-    SwitchRow(Icons.Rounded.Headphones, "Воспроизведение в фоне", "Звук продолжает играть, когда плеер свёрнут", bg, AppSettings::setVideoBackground)
-    SwitchRow(Icons.Rounded.PictureInPictureAlt, "Авто «картинка в картинке»", "Видео уходит в окно поверх других приложений при нажатии «Домой»", pip, AppSettings::setVideoAutoPip)
+    Header(tr(R.string.set_playback))
+    SwitchRow(Icons.Rounded.Headphones, tr(R.string.bg_playback), tr(R.string.bg_playback_desc), bg, AppSettings::setVideoBackground)
+    SwitchRow(Icons.Rounded.PictureInPictureAlt, tr(R.string.set_auto_pip), tr(R.string.set_auto_pip_desc), pip, AppSettings::setVideoAutoPip)
     ChoiceRow(
-        Icons.Rounded.Speed, "Скорость по умолчанию",
+        Icons.Rounded.Speed, tr(R.string.set_default_speed),
         SPEEDS.map { it to "${it.toString().removeSuffix(".0")}×" }, speed, AppSettings::setVideoSpeed,
     )
     Divider()
-    Header("Экран")
-    SwitchRow(Icons.Rounded.ScreenRotation, "Поворот под видео", "Широкие ролики открываются в альбомной ориентации, вертикальные и квадратные — в портретной", rotate, AppSettings::setVideoAutoRotate)
-    SwitchRow(Icons.Rounded.Fullscreen, "Заполнять экран", "Видео без полос по краям, края кадра обрезаются. Переключается двойным нажатием в центре", fill, AppSettings::setVideoFill)
+    Header(tr(R.string.set_screen))
+    SwitchRow(Icons.Rounded.ScreenRotation, tr(R.string.set_rotate), tr(R.string.set_rotate_desc), rotate, AppSettings::setVideoAutoRotate)
+    SwitchRow(Icons.Rounded.Fullscreen, tr(R.string.set_fill), tr(R.string.set_fill_desc), fill, AppSettings::setVideoFill)
     Divider()
-    Header("Жесты")
+    Header(tr(R.string.set_gestures))
     ChoiceRow(
-        Icons.Rounded.TouchApp, "Перемотка двойным нажатием",
-        listOf(5, 10, 15, 30).map { it to "$it секунд" }, step, AppSettings::setSeekStep,
-        subtitle = "Двойное нажатие у левого края — назад, у правого — вперёд",
+        Icons.Rounded.TouchApp, tr(R.string.set_double_tap),
+        listOf(5, 10, 15, 30).map { it to tr(R.string.seconds_n, it) }, step, AppSettings::setSeekStep,
+        subtitle = tr(R.string.set_double_tap_desc),
     )
     Divider()
-    Header("Эпизоды")
-    SwitchRow(Icons.AutoMirrored.Rounded.FormatListBulleted, "Эпизоды в плеере", "Кнопка и панель «Эпизоды» для видео, скачанных с главами", chapters, AppSettings::setShowChapters)
+    Header(tr(R.string.chapters))
+    SwitchRow(Icons.AutoMirrored.Rounded.FormatListBulleted, tr(R.string.set_chapters_player), tr(R.string.set_chapters_player_desc), chapters, AppSettings::setShowChapters)
 }
 
 @Composable
@@ -317,12 +340,8 @@ private fun SponsorBlockPage() {
     val actions by AppSettings.sbActions.collectAsStateWithLifecycle()
     val notice by AppSettings.sbNotice.collectAsStateWithLifecycle()
     val onDownload by AppSettings.sbOnDownload.collectAsStateWithLifecycle()
-    Note(
-        "SponsorBlock — открытая база отметок рекламы и других вставок в роликах YouTube. " +
-            "Для каждой категории выберите: пропускать автоматически, спрашивать кнопкой «Пропустить» или не трогать. " +
-            "Отмеченные отрезки закрашиваются зелёным на полосе перемотки.",
-    )
-    Header("Категории")
+    Note(tr(R.string.set_sb_intro))
+    Header(tr(R.string.categories))
     SponsorBlock.CATEGORIES.forEach { (key, label) ->
         ChoiceRow(
             icon = null,
@@ -335,10 +354,10 @@ private fun SponsorBlockPage() {
         )
     }
     Divider()
-    Header("Поведение")
-    SwitchRow(Icons.Rounded.Tune, "Плашка после пропуска", "«Пропущено: Спонсор · Вернуть» — можно вернуться к отрезку", notice, AppSettings::setSbNotice)
-    SwitchRow(Icons.Rounded.Download, "Загружать при скачивании", "Отметки сохраняются вместе с видео и работают офлайн", onDownload, AppSettings::setSbOnDownload)
-    Note("Запрос к SponsorBlock приватный: на сервер уходят только первые символы хеша ID ролика.")
+    Header(tr(R.string.set_behavior))
+    SwitchRow(Icons.Rounded.Tune, tr(R.string.set_sb_notice), tr(R.string.set_sb_notice_desc), notice, AppSettings::setSbNotice)
+    SwitchRow(Icons.Rounded.Download, tr(R.string.set_sb_on_download), tr(R.string.set_sb_on_download_desc), onDownload, AppSettings::setSbOnDownload)
+    Note(tr(R.string.set_sb_privacy))
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -353,35 +372,31 @@ private fun DownloadsPage() {
     val autoSubs by AppSettings.autoSubs.collectAsStateWithLifecycle()
     val whole by AppSettings.wholePlaylist.collectAsStateWithLifecycle()
 
-    Header("По умолчанию")
-    ChoiceRow(Icons.Rounded.AudioFile, "Формат музыки", AUDIO_FORMATS, audioFormat, AppSettings::setAudioFormat)
-    ChoiceRow(Icons.Rounded.HighQuality, "Качество видео", VIDEO_QUALITIES, height, AppSettings::setVideoHeight)
+    Header(tr(R.string.set_defaults))
+    ChoiceRow(Icons.Rounded.AudioFile, tr(R.string.audio_format), AUDIO_FORMATS, audioFormat, AppSettings::setAudioFormat)
+    ChoiceRow(Icons.Rounded.HighQuality, tr(R.string.video_quality), VIDEO_QUALITIES, height, AppSettings::setVideoHeight)
     SwitchRow(
-        Icons.AutoMirrored.Rounded.PlaylistPlay, "Плейлист целиком",
-        "По ссылке на страницу плейлиста сразу скачивать его весь: видео — списком, музыка — миксом",
+        Icons.AutoMirrored.Rounded.PlaylistPlay, tr(R.string.set_whole_playlist),
+        tr(R.string.set_whole_playlist_desc),
         whole, AppSettings::setWholePlaylist,
     )
     Divider()
-    Header("Видео")
-    SwitchRow(Icons.AutoMirrored.Rounded.FormatListBulleted, "Эпизоды", "Сохранять главы видео для навигации в плеере офлайн", chapters, AppSettings::setSaveChapters)
-    SwitchRow(Icons.Rounded.FastForward, "SponsorBlock", "Сохранять отметки рекламы и вставок для пропуска офлайн", sb, AppSettings::setSbOnDownload)
-    Divider()
-    Header("Аудиодорожки")
-    Note(
-        if (audioLangs.isEmpty()) "Сейчас: только оригинальная дорожка. Выберите языки, чтобы добавить дубляж YouTube, если он есть у ролика. Переключать дорожки можно в настройках плеера."
-        else "Оригинальная дорожка + дубляж на выбранных языках, если он есть у ролика. Переключение — в настройках плеера.",
+    Header(tr(R.string.tab_video))
+    SwitchRow(Icons.AutoMirrored.Rounded.FormatListBulleted, tr(R.string.chapters), tr(R.string.set_save_chapters_desc), chapters, AppSettings::setSaveChapters)
+    SwitchRow(Icons.Rounded.FastForward, tr(R.string.sponsorblock), tr(R.string.set_save_sb_desc), sb, AppSettings::setSbOnDownload)
+    LanguageRow(
+        Icons.Rounded.RecordVoiceOver, tr(R.string.audio_tracks),
+        if (audioLangs.isEmpty()) tr(R.string.audio_tracks_original)
+        else tr(R.string.audio_tracks_plus, audioLangs.joinToString(", ") { languageName(it) }),
+        tr(R.string.audio_tracks_hint), audioLangs, max = 3, onChange = AppSettings::setExtraAudioLangs,
     )
-    LanguageChips(audioLangs, AppSettings::toggleExtraAudioLang, Icons.Rounded.RecordVoiceOver)
-    Divider()
-    Header("Субтитры")
-    Note(
-        if (subLangs.isEmpty()) "Сейчас: без субтитров. Выберите языки — субтитры встроятся в видео и включаются кнопкой CC в плеере."
-        else "Субтитры на выбранных языках встраиваются в видео и включаются кнопкой CC в плеере.",
+    LanguageRow(
+        Icons.Rounded.ClosedCaption, tr(R.string.subtitles),
+        if (subLangs.isEmpty()) tr(R.string.subtitles_off) else subLangs.joinToString(", ") { languageName(it) },
+        tr(R.string.subtitles_hint), subLangs, max = Int.MAX_VALUE, onChange = AppSettings::setSubLangs,
     )
-    LanguageChips(subLangs, AppSettings::toggleSubLang, Icons.Rounded.ClosedCaption)
     SwitchRow(
-        Icons.Rounded.ClosedCaption, "Автоматические субтитры",
-        "Если автор не добавил субтитры — брать созданные YouTube автоматически",
+        Icons.Rounded.AutoAwesome, tr(R.string.auto_subs), tr(R.string.auto_subs_desc),
         autoSubs, AppSettings::setAutoSubs, enabled = subLangs.isNotEmpty(),
     )
 }
@@ -394,10 +409,10 @@ private fun AboutPage() {
     }
     val used = remember { LibraryStore.all().sumOf { it.size } }
     val count = remember { LibraryStore.all().size }
-    InfoRow(Icons.Rounded.Info, "Версия", "OFFPlayer $version")
+    InfoRow(Icons.Rounded.Info, tr(R.string.version), "OFFPlayer $version")
     UpdateRows()
-    InfoRow(Icons.Rounded.Storage, "Медиатека", "Файлов: $count • ${formatSize(used)}")
-    Note("Плагин загрузки обновляется автоматически при подключении к сети. Обновления приложения проверяются по подписи — установится только версия, подписанная тем же ключом.")
+    InfoRow(Icons.Rounded.Storage, tr(R.string.set_library), tr(R.string.files_count, count, formatSize(used)))
+    Note(tr(R.string.set_about_note))
 }
 
 // ---------- Обновления приложения ----------
@@ -408,16 +423,16 @@ private fun UpdateRows() {
     val state by AppUpdater.state.collectAsStateWithLifecycle()
     val auto by AppUpdater.autoCheck.collectAsStateWithLifecycle()
     val status = when (val s = state) {
-        UpdateState.Checking -> "Проверка…"
-        UpdateState.UpToDate -> "Установлена последняя версия"
-        is UpdateState.Available -> "Доступна версия ${s.info.version} — нажмите, чтобы обновить"
-        is UpdateState.Downloading -> "Загрузка ${s.info.version}… ${(s.progress * 100).toInt()}%"
-        is UpdateState.Installing -> "Подтвердите установку"
-        is UpdateState.NeedsPermission -> "Нужно разрешить установку приложений"
+        UpdateState.Checking -> tr(R.string.upd_checking)
+        UpdateState.UpToDate -> tr(R.string.upd_up_to_date)
+        is UpdateState.Available -> tr(R.string.upd_tap_to_update, s.info.version)
+        is UpdateState.Downloading -> tr(R.string.upd_downloading_v, s.info.version, (s.progress * 100).toInt())
+        is UpdateState.Installing -> tr(R.string.upd_confirm_short)
+        is UpdateState.NeedsPermission -> tr(R.string.upd_need_permission_short)
         is UpdateState.Error -> s.message
-        UpdateState.Idle -> "Нажмите, чтобы проверить"
+        UpdateState.Idle -> tr(R.string.upd_tap_to_check)
     }
-    SettingRow(Icons.Rounded.SystemUpdate, "Проверить обновления", status, onClick = {
+    SettingRow(Icons.Rounded.SystemUpdate, tr(R.string.upd_check), status, onClick = {
         if (state is UpdateState.Available || state is UpdateState.NeedsPermission || state is UpdateState.Error && (state as UpdateState.Error).info != null) {
             AppUpdater.showPrompt()
         } else {
@@ -425,8 +440,8 @@ private fun UpdateRows() {
         }
     })
     SwitchRow(
-        Icons.Rounded.Update, "Проверять автоматически",
-        "Раз в 12 часов при запуске — новые версии из GitHub",
+        Icons.Rounded.Update, tr(R.string.upd_auto),
+        tr(R.string.upd_auto_desc),
         auto, { AppUpdater.setAutoCheck(context, it) },
     )
 }
@@ -440,15 +455,15 @@ private fun DeviceMediaRows() {
     var choosing by remember { mutableStateOf(false) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         if (MediaRepository.hasPermission(context)) choosing = true
-        else Toast.makeText(context, "Без доступа к медиафайлам контент устройства недоступен", Toast.LENGTH_LONG).show()
+        else Toast.makeText(context, tr(R.string.device_no_permission), Toast.LENGTH_LONG).show()
     }
     val apply = { m: DeviceMediaMode ->
         AppSettings.setDeviceMedia(m)
         MediaRepository.refreshAsync(context)
     }
     SwitchRow(
-        Icons.Rounded.PhoneAndroid, "Контент из памяти устройства",
-        "Слушать и смотреть ваши собственные аудио и видео, а не только скачанное через OFFPlayer",
+        Icons.Rounded.PhoneAndroid, tr(R.string.device_content),
+        tr(R.string.device_content_desc),
         mode != DeviceMediaMode.OFF,
         onChange = { on ->
 
@@ -461,30 +476,30 @@ private fun DeviceMediaRows() {
     )
     if (mode != DeviceMediaMode.OFF) {
         ChoiceRow(
-            Icons.Rounded.MergeType, "Как показывать",
-            listOf(DeviceMediaMode.MIXED to "Вместе со скачанным", DeviceMediaMode.SEPARATE to "Отдельный раздел"),
+            Icons.Rounded.MergeType, tr(R.string.device_how_show),
+            listOf(DeviceMediaMode.MIXED to tr(R.string.device_mixed), DeviceMediaMode.SEPARATE to tr(R.string.device_separate)),
             mode, apply,
             optionDescription = {
-                if (it == DeviceMediaMode.MIXED) "В общих списках «Треки» и «Все»" else "Раздел «На устройстве», файлы по папкам"
+                if (it == DeviceMediaMode.MIXED) tr(R.string.device_mixed_desc) else tr(R.string.device_separate_desc)
             },
         )
     }
     if (choosing) {
         AlertDialog(
             onDismissRequest = { choosing = false },
-            title = { Text("Как показывать ваши файлы?") },
+            title = { Text(tr(R.string.device_how_show_q)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    ModeOption(Icons.Rounded.MergeType, "Вместе со скачанным", "Ваши треки и видео появятся в общих списках «Треки» и «Все» рядом со скачанными") {
+                    ModeOption(Icons.Rounded.MergeType, tr(R.string.device_mixed), tr(R.string.device_mixed_long)) {
                         apply(DeviceMediaMode.MIXED); choosing = false
                     }
-                    ModeOption(Icons.Rounded.FolderOpen, "Отдельно — «На устройстве»", "Отдельные разделы в «Музыке» и «Видео»: файлы сгруппированы по папкам") {
+                    ModeOption(Icons.Rounded.FolderOpen, tr(R.string.device_separate), tr(R.string.device_separate_long)) {
                         apply(DeviceMediaMode.SEPARATE); choosing = false
                     }
                 }
             },
             confirmButton = {},
-            dismissButton = { TextButton(onClick = { choosing = false }) { Text("Отмена") } },
+            dismissButton = { TextButton(onClick = { choosing = false }) { Text(tr(R.string.action_cancel)) } },
         )
     }
 }
@@ -635,32 +650,92 @@ private fun <T> ChoiceRow(
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = { open = false }) { Text("Закрыть") } },
+            confirmButton = { TextButton(onClick = { open = false }) { Text(tr(R.string.action_close)) } },
         )
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+/**
+ * Компактная строка выбора языков: текущий выбор — под названием,
+ * по нажатию — список всех языков YouTube с поиском и галочками.
+ */
 @Composable
-private fun LanguageChips(selected: Set<String>, toggle: (String) -> Unit, icon: ImageVector) {
-    FlowRow(
-        Modifier.padding(start = 64.dp, end = 20.dp, bottom = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        DOWNLOAD_LANGUAGES.forEach { (code, name) ->
-            FilterChip(
-                selected = code in selected,
-                onClick = { toggle(code) },
-                label = { Text(name) },
-                leadingIcon = if (code in selected) {
-                    { Icon(icon, null, Modifier.size(16.dp)) }
-                } else null,
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = MaterialTheme.colorScheme.inverseSurface,
-                    selectedLabelColor = MaterialTheme.colorScheme.inverseOnSurface,
-                    selectedLeadingIconColor = MaterialTheme.colorScheme.inverseOnSurface,
-                ),
-            )
-        }
+private fun LanguageRow(
+    icon: ImageVector,
+    title: String,
+    summary: String,
+    hint: String,
+    selected: Set<String>,
+    max: Int,
+    onChange: (Set<String>) -> Unit,
+) {
+    val context = LocalContext.current
+    var open by remember { mutableStateOf(false) }
+    SettingRow(icon, title, summary, onClick = { open = true }) {
+        Spacer(Modifier.width(8.dp))
+        Icon(
+            Icons.AutoMirrored.Rounded.KeyboardArrowRight, null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+        )
     }
+    if (!open) return
+    var query by remember { mutableStateOf("") }
+    // Выбранные — сверху (порядок фиксируется при открытии, чтобы строки не прыгали), остальные — по алфавиту
+    val ordered = remember {
+        val names = DOWNLOAD_LANGUAGE_CODES.associateWith { languageName(it) }
+        val (sel, rest) = DOWNLOAD_LANGUAGE_CODES.partition { it in selected }
+        (sel.sortedBy { names[it] } + rest.sortedBy { names[it] }).map { it to names.getValue(it) }
+    }
+    val shown = remember(query) {
+        val q = query.trim()
+        if (q.isEmpty()) ordered
+        else ordered.filter { (code, name) -> name.contains(q, ignoreCase = true) || code.startsWith(q, ignoreCase = true) }
+    }
+    AlertDialog(
+        onDismissRequest = { open = false },
+        title = { Text(title) },
+        text = {
+            Column {
+                Text(hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    placeholder = { Text(tr(R.string.search_language)) },
+                    leadingIcon = { Icon(Icons.Rounded.Search, null) },
+                    singleLine = true,
+                    shape = AppShapes.Card,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(6.dp))
+                LazyColumn(Modifier.heightIn(max = 340.dp)) {
+                    items(shown, key = { it.first }) { (code, name) ->
+                        val checked = code in selected
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(AppShapes.Thumb)
+                                .clickable {
+                                    when {
+                                        checked -> onChange(selected - code)
+                                        selected.size >= max ->
+                                            Toast.makeText(context, tr(R.string.max_three), Toast.LENGTH_SHORT).show()
+                                        else -> onChange(selected + code)
+                                    }
+                                }
+                                .padding(vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Checkbox(checked = checked, onCheckedChange = null, modifier = Modifier.padding(12.dp))
+                            Text(name, style = MaterialTheme.typography.bodyLarge)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { open = false }) { Text(tr(R.string.done)) } },
+        dismissButton = if (selected.isNotEmpty()) {
+            { TextButton(onClick = { onChange(emptySet()) }) { Text(tr(R.string.action_clear_all)) } }
+        } else null,
+    )
 }

@@ -286,10 +286,10 @@ class MainActivity : ComponentActivity() {
         val playing = c?.isPlaying == true
         builder.setActions(
             listOf(
-                remoteAction(ACTION_PIP_PREV, android.R.drawable.ic_media_previous, "Назад", 1),
-                if (playing) remoteAction(ACTION_PIP_PLAY_PAUSE, android.R.drawable.ic_media_pause, "Пауза", 2)
-                else remoteAction(ACTION_PIP_PLAY_PAUSE, android.R.drawable.ic_media_play, "Играть", 2),
-                remoteAction(ACTION_PIP_NEXT, android.R.drawable.ic_media_next, "Вперёд", 3),
+                remoteAction(ACTION_PIP_PREV, android.R.drawable.ic_media_previous, tr(R.string.action_back), 1),
+                if (playing) remoteAction(ACTION_PIP_PLAY_PAUSE, android.R.drawable.ic_media_pause, tr(R.string.action_pause), 2)
+                else remoteAction(ACTION_PIP_PLAY_PAUSE, android.R.drawable.ic_media_play, tr(R.string.action_play), 2),
+                remoteAction(ACTION_PIP_NEXT, android.R.drawable.ic_media_next, tr(R.string.action_forward), 3),
             )
         )
         if (Build.VERSION.SDK_INT >= 31) {
@@ -314,7 +314,7 @@ class MainActivity : ComponentActivity() {
 
     private fun enterPip() {
         if (!pipSupported) {
-            Toast.makeText(this, "Устройство не поддерживает «картинку в картинке»", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, tr(R.string.pip_unsupported), Toast.LENGTH_SHORT).show()
             return
         }
         if (videoOpen) runCatching { enterPictureInPictureMode(pipParams()) }

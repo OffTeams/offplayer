@@ -1,5 +1,9 @@
 package com.offplayer.app.ui
 
+import com.offplayer.app.tr
+import com.offplayer.app.trn
+import com.offplayer.app.R
+
 import android.app.Activity
 import android.app.RecoverableSecurityException
 import android.content.Context
@@ -76,7 +80,7 @@ fun DeleteMediaHost() {
                         awaiting = req
                         launcher.launch(IntentSenderRequest.Builder(e.userAction.actionIntent.intentSender).build())
                     } else {
-                        Toast.makeText(context, "Нет доступа к файлу", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, tr(R.string.no_file_access), Toast.LENGTH_SHORT).show()
                     }
                 }
             }
@@ -101,7 +105,7 @@ fun DeleteMediaHost() {
         return
     }
     val what = when {
-        req.count > 1 -> if (req.isVideo) "${req.count} видео" else tracksCount(req.count)
+        req.count > 1 -> if (req.isVideo) trn(R.plurals.videos, req.count) else tracksCount(req.count)
         else -> "«${req.title}»"
     }
     AlertDialog(
@@ -109,23 +113,23 @@ fun DeleteMediaHost() {
         title = {
             Text(
                 when {
-                    req.count > 1 -> "Удалить файлы?"
-                    req.isVideo -> "Удалить видео?"
-                    else -> "Удалить трек?"
+                    req.count > 1 -> tr(R.string.delete_files_q)
+                    req.isVideo -> tr(R.string.delete_video_q)
+                    else -> tr(R.string.delete_track_q)
                 }
             )
         },
         text = {
-            val from = if (req.deviceUris.isNotEmpty()) "с устройства" else "из медиатеки OFFPlayer"
-            Text("$what будут удалены $from без возможности восстановления.")
+            val fromDevice = req.deviceUris.isNotEmpty()
+            Text(tr(if (fromDevice) R.string.delete_body_device else R.string.delete_body_library, what))
         },
         confirmButton = {
             TextButton(onClick = {
                 UiEvents.delete.value = null
                 start(req)
-            }) { Text("Удалить", color = MaterialTheme.colorScheme.error) }
+            }) { Text(tr(R.string.action_delete), color = MaterialTheme.colorScheme.error) }
         },
-        dismissButton = { TextButton(onClick = { UiEvents.delete.value = null }) { Text("Отмена") } },
+        dismissButton = { TextButton(onClick = { UiEvents.delete.value = null }) { Text(tr(R.string.action_cancel)) } },
     )
 }
 
@@ -153,5 +157,5 @@ private fun onDeleted(context: Context, req: DeleteRequest, ids: Set<Long>, comp
     )
     if (complete) req.after?.invoke()
     MediaRepository.refreshAsync(context)
-    Toast.makeText(context, if (ids.size > 1) "Удалено файлов: ${ids.size}" else "Удалено", Toast.LENGTH_SHORT).show()
+    Toast.makeText(context, if (ids.size > 1) tr(R.string.deleted_files, ids.size) else tr(R.string.deleted), Toast.LENGTH_SHORT).show()
 }

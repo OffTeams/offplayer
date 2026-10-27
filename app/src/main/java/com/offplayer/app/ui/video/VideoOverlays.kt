@@ -1,5 +1,8 @@
 package com.offplayer.app.ui.video
 
+import com.offplayer.app.tr
+import com.offplayer.app.R
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -122,16 +125,16 @@ fun ChaptersPanel(
                 .padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("Эпизоды", color = Color.White, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Text(tr(R.string.chapters), color = Color.White, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.width(8.dp))
             Text(
-                "${current + 1} из ${chapters.size}",
+                tr(R.string.n_of_m, current + 1, chapters.size),
                 color = Color.White.copy(alpha = 0.55f),
                 style = MaterialTheme.typography.labelMedium,
             )
             Spacer(Modifier.weight(1f))
             IconButton(onClick = onClose) {
-                Icon(Icons.Rounded.Close, "Закрыть", tint = Color.White.copy(alpha = 0.85f), modifier = Modifier.size(20.dp))
+                Icon(Icons.Rounded.Close, tr(R.string.action_close), tint = Color.White.copy(alpha = 0.85f), modifier = Modifier.size(20.dp))
             }
         }
         LazyColumn(state = listState, contentPadding = PaddingValues(start = 8.dp, end = 8.dp, bottom = 8.dp)) {
@@ -248,10 +251,10 @@ fun QueuePanel(
                     title, color = Color.White, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
-                Text("${currentIndex + 1} из ${queue.size}", color = Color.White.copy(alpha = 0.55f), style = MaterialTheme.typography.labelMedium)
+                Text(tr(R.string.n_of_m, currentIndex + 1, queue.size), color = Color.White.copy(alpha = 0.55f), style = MaterialTheme.typography.labelMedium)
             }
             IconButton(onClick = onClose) {
-                Icon(Icons.Rounded.Close, "Закрыть", tint = Color.White.copy(alpha = 0.85f), modifier = Modifier.size(20.dp))
+                Icon(Icons.Rounded.Close, tr(R.string.action_close), tint = Color.White.copy(alpha = 0.85f), modifier = Modifier.size(20.dp))
             }
         }
         LazyColumn(state = listState, contentPadding = PaddingValues(start = 8.dp, end = 8.dp, bottom = 8.dp)) {
@@ -328,7 +331,7 @@ fun DoubleTapHint(hint: TapHint, modifier: Modifier = Modifier) {
             is TapHint.Seek -> {
                 if (!hint.forward) Icon(Icons.Rounded.FastRewind, null, tint = Color.White, modifier = Modifier.size(24.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("${hint.seconds} с", color = Color.White, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                Text(tr(R.string.sec_short, hint.seconds), color = Color.White, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.width(6.dp))
                 if (hint.forward) Icon(Icons.Rounded.FastForward, null, tint = Color.White, modifier = Modifier.size(24.dp))
             }
@@ -336,7 +339,7 @@ fun DoubleTapHint(hint: TapHint, modifier: Modifier = Modifier) {
                 Icon(if (hint.fill) Icons.Rounded.Fullscreen else Icons.Rounded.FullscreenExit, null, tint = Color.White, modifier = Modifier.size(24.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    if (hint.fill) "Заполнение экрана" else "Исходный размер",
+                    if (hint.fill) tr(R.string.fill_screen) else tr(R.string.original_size),
                     color = Color.White, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
                 )
             }
@@ -377,13 +380,13 @@ fun PlayerSettingsPanel(
         ) {
             Row(Modifier.padding(start = 20.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "Настройки", color = Color.White, style = MaterialTheme.typography.titleMedium,
+                    tr(R.string.settings), color = Color.White, style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f),
                 )
-                IconButton(onClick = onClose) { Icon(Icons.Rounded.Close, "Закрыть", tint = Color.White.copy(alpha = 0.85f)) }
+                IconButton(onClick = onClose) { Icon(Icons.Rounded.Close, tr(R.string.action_close), tint = Color.White.copy(alpha = 0.85f)) }
             }
             Text(
-                "Скорость", color = Color.White.copy(alpha = 0.6f), style = MaterialTheme.typography.labelLarge,
+                tr(R.string.speed), color = Color.White.copy(alpha = 0.6f), style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.padding(start = 20.dp, top = 4.dp, bottom = 8.dp),
             )
             Row(
@@ -420,7 +423,7 @@ fun PlayerSettingsPanel(
             if (audioGroups.size > 1) {
                 var selected by remember(controller) { mutableIntStateOf(audioGroups.indexOfFirst { it.isSelected }) }
                 Text(
-                    "Аудиодорожка", color = Color.White.copy(alpha = 0.6f), style = MaterialTheme.typography.labelLarge,
+                    tr(R.string.audio_track), color = Color.White.copy(alpha = 0.6f), style = MaterialTheme.typography.labelLarge,
                     modifier = Modifier.padding(start = 20.dp, top = 14.dp, bottom = 8.dp),
                 )
                 Row(
@@ -435,10 +438,10 @@ fun PlayerSettingsPanel(
                         val name = f.label
                             ?: f.language?.takeIf { it != "und" }?.let { java.util.Locale.forLanguageTag(it).getDisplayLanguage(java.util.Locale("ru")) }
                                 ?.replaceFirstChar { it.uppercase() }
-                            ?: "Дорожка ${i + 1}"
+                            ?: tr(R.string.track_n, i + 1)
                         val isSel = i == selected
                         Text(
-                            if (i == 0) "$name · оригинал" else name,
+                            if (i == 0) tr(R.string.track_original, name) else name,
                             color = if (isSel) Color.Black else Color.White,
                             style = MaterialTheme.typography.labelLarge,
                             maxLines = 1,
@@ -461,8 +464,8 @@ fun PlayerSettingsPanel(
             Spacer(Modifier.height(12.dp))
             SettingsRow(
                 icon = if (background) Icons.Rounded.Headphones else Icons.Rounded.HeadsetOff,
-                title = "Воспроизведение в фоне",
-                subtitle = "Звук продолжает играть, когда плеер свёрнут",
+                title = tr(R.string.bg_playback),
+                subtitle = tr(R.string.bg_playback_desc),
                 onClick = { AppSettings.setVideoBackground(!background) },
             ) {
                 Switch(checked = background, onCheckedChange = { AppSettings.setVideoBackground(it) })
@@ -470,8 +473,8 @@ fun PlayerSettingsPanel(
             if (pipSupported) {
                 SettingsRow(
                     icon = Icons.Rounded.PictureInPictureAlt,
-                    title = "Картинка в картинке",
-                    subtitle = "Видео в маленьком окне поверх других приложений",
+                    title = tr(R.string.pip),
+                    subtitle = tr(R.string.pip_desc),
                     onClick = onPip,
                 )
             }
@@ -518,7 +521,7 @@ fun SkippedNotice(segment: SponsorSegment, onUndo: () -> Unit, modifier: Modifie
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Box(Modifier.size(8.dp).background(SponsorGreen, AppShapes.Pill))
-        Text("Пропущено: ${SponsorBlock.label(segment.category)}", color = Color.White, style = MaterialTheme.typography.labelLarge)
+        Text(tr(R.string.sb_skipped, SponsorBlock.label(segment.category)), color = Color.White, style = MaterialTheme.typography.labelLarge)
         Row(
             Modifier
                 .background(Color.White.copy(alpha = 0.12f), AppShapes.Pill)
@@ -528,7 +531,7 @@ fun SkippedNotice(segment: SponsorSegment, onUndo: () -> Unit, modifier: Modifie
         ) {
             Icon(Icons.Rounded.Replay, null, tint = Color.White, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(4.dp))
-            Text("Вернуть", color = Color.White, style = MaterialTheme.typography.labelLarge)
+            Text(tr(R.string.sb_undo), color = Color.White, style = MaterialTheme.typography.labelLarge)
         }
     }
 }
@@ -544,7 +547,7 @@ fun SkipSegmentButton(segment: SponsorSegment, onSkip: () -> Unit, modifier: Mod
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("Пропустить: ${SponsorBlock.label(segment.category)}", color = Color.White, style = MaterialTheme.typography.labelLarge)
+        Text(tr(R.string.sb_skip_btn, SponsorBlock.label(segment.category)), color = Color.White, style = MaterialTheme.typography.labelLarge)
         Spacer(Modifier.width(6.dp))
         Icon(Icons.Rounded.FastForward, null, tint = SponsorGreen, modifier = Modifier.size(18.dp))
     }

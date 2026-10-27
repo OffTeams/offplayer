@@ -1,5 +1,7 @@
 package com.offplayer.app.model
 
+import com.offplayer.app.R
+
 import android.net.Uri
 
 data class Track(
@@ -30,7 +32,7 @@ data class Track(
  * для открытия в файловом менеджере («primary:Music/Telegram»).
  */
 data class DeviceFolder(val path: String, val documentId: String) {
-    val name: String get() = path.trimEnd('/').substringAfterLast('/').ifEmpty { "Память устройства" }
+    val name: String get() = path.trimEnd('/').substringAfterLast('/').ifEmpty { com.offplayer.app.tr(com.offplayer.app.R.string.device_storage) }
 }
 
 data class Video(

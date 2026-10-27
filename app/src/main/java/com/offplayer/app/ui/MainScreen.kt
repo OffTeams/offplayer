@@ -1,5 +1,8 @@
 package com.offplayer.app.ui
 
+import com.offplayer.app.tr
+import com.offplayer.app.R
+
 import android.Manifest
 import android.os.Build
 import android.content.pm.PackageManager
@@ -101,11 +104,13 @@ import com.offplayer.app.ui.video.VideoScreen
 import com.offplayer.app.video.VideoController
 import kotlinx.coroutines.launch
 
-enum class MainTab(val label: String, val icon: ImageVector) {
-    MUSIC("Музыка", Icons.Rounded.LibraryMusic),
-    PODCASTS("Подкасты", Icons.Rounded.Podcasts),
-    VIDEO("Видео", Icons.Rounded.VideoLibrary),
-    DOWNLOADS("Загрузки", Icons.Rounded.Download),
+enum class MainTab(@androidx.annotation.StringRes private val res: Int, val icon: ImageVector) {
+    MUSIC(R.string.tab_music, Icons.Rounded.LibraryMusic),
+    PODCASTS(R.string.tab_podcasts, Icons.Rounded.Podcasts),
+    VIDEO(R.string.tab_video, Icons.Rounded.VideoLibrary),
+    DOWNLOADS(R.string.tab_downloads, Icons.Rounded.Download);
+
+    val label: String get() = tr(res)
 }
 
 @Composable
@@ -391,7 +396,7 @@ private fun DownloadDoneBanner() {
                     }
                     if (e.result != null) {
                         Spacer(Modifier.width(8.dp))
-                        Text("Открыть", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                        Text(tr(R.string.action_open), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                     }
                 }
             }

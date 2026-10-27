@@ -1,5 +1,7 @@
 package com.offplayer.app.ui.video
 
+import com.offplayer.app.tr
+
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
@@ -555,7 +557,7 @@ fun VideoPlayerScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = onClose) {
-                    Icon(Icons.Rounded.KeyboardArrowDown, "Закрыть", tint = Color.White, modifier = Modifier.size(30.dp))
+                    Icon(Icons.Rounded.KeyboardArrowDown, tr(R.string.action_collapse), tint = Color.White, modifier = Modifier.size(30.dp))
                 }
                 Column(Modifier.weight(1f)) {
                     Text(
@@ -572,18 +574,18 @@ fun VideoPlayerScreen(
                 }
                 if (hasQueue) {
                     IconButton(onClick = { panel = if (panel == PlayerPanel.QUEUE) PlayerPanel.NONE else PlayerPanel.QUEUE }) {
-                        Icon(Icons.AutoMirrored.Rounded.PlaylistPlay, "Список", tint = if (panel == PlayerPanel.QUEUE) Accent else Color.White)
+                        Icon(Icons.AutoMirrored.Rounded.PlaylistPlay, tr(R.string.list), tint = if (panel == PlayerPanel.QUEUE) Accent else Color.White)
                     }
                 }
                 if (chapters.isNotEmpty()) {
                     IconButton(onClick = { panel = if (chaptersOpen) PlayerPanel.NONE else PlayerPanel.CHAPTERS }) {
-                        Icon(Icons.AutoMirrored.Rounded.FormatListBulleted, "Эпизоды", tint = if (chaptersOpen) Accent else Color.White)
+                        Icon(Icons.AutoMirrored.Rounded.FormatListBulleted, tr(R.string.chapters), tint = if (chaptersOpen) Accent else Color.White)
                     }
                 }
                 // Скорость, фоновое воспроизведение, «картинка в картинке»
-                IconButton(onClick = { settingsOpen = true }) { Icon(Icons.Rounded.Settings, "Настройки плеера", tint = Color.White) }
+                IconButton(onClick = { settingsOpen = true }) { Icon(Icons.Rounded.Settings, tr(R.string.player_settings), tint = Color.White) }
                 // Стрелка вниз сворачивает видео в фон, крестик — закрывает полностью
-                IconButton(onClick = onStop) { Icon(Icons.Rounded.Close, "Закрыть видео", tint = Color.White) }
+                IconButton(onClick = onStop) { Icon(Icons.Rounded.Close, tr(R.string.close_video), tint = Color.White) }
             }
         }
 
@@ -623,7 +625,7 @@ fun VideoPlayerScreen(
                         .size(52.dp)
                         .background(Color.Black.copy(alpha = 0.6f), AppShapes.Pill),
                 ) {
-                    Icon(Icons.Rounded.ScreenRotation, "Повернуть экран", tint = Color.White)
+                    Icon(Icons.Rounded.ScreenRotation, tr(R.string.rotate_screen), tint = Color.White)
                 }
             }
             // …и плашка после автопропуска с возможностью вернуться
@@ -672,7 +674,7 @@ fun VideoPlayerScreen(
                 if (panel != PlayerPanel.NONE) shownPanel = panel
                 if (shownPanel == PlayerPanel.QUEUE) {
                     QueuePanel(
-                        title = ui.queueTitle ?: "Очередь",
+                        title = ui.queueTitle ?: tr(R.string.queue),
                         queue = ui.queue,
                         currentIndex = ui.currentIndex,
                         landscape = landscape,

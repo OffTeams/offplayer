@@ -1,5 +1,8 @@
 package com.offplayer.app.ui
 
+import com.offplayer.app.tr
+import com.offplayer.app.R
+
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -65,7 +68,7 @@ fun openFolder(context: Context, folder: DeviceFolder) {
         } catch (_: SecurityException) {
         }
     }
-    Toast.makeText(context, "Не найден файловый менеджер. Папка: ${folder.path}", Toast.LENGTH_LONG).show()
+    Toast.makeText(context, tr(R.string.no_file_manager, folder.path), Toast.LENGTH_LONG).show()
 }
 
 /**
@@ -86,7 +89,7 @@ fun DeviceFolderHeader(folder: DeviceFolder, count: String, expanded: Boolean, o
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = onToggle) {
-            Icon(Icons.Rounded.KeyboardArrowDown, if (expanded) "Свернуть" else "Развернуть", Modifier.rotate(arrow))
+            Icon(Icons.Rounded.KeyboardArrowDown, if (expanded) tr(R.string.action_collapse) else tr(R.string.action_expand), Modifier.rotate(arrow))
         }
         Row(
             Modifier
@@ -111,7 +114,7 @@ fun DeviceFolderHeader(folder: DeviceFolder, count: String, expanded: Boolean, o
                 )
             }
             Icon(
-                Icons.AutoMirrored.Rounded.OpenInNew, "Открыть в файловом менеджере",
+                Icons.AutoMirrored.Rounded.OpenInNew, tr(R.string.open_in_file_manager),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 8.dp).size(18.dp),
             )
         }
@@ -127,9 +130,9 @@ fun DevicePermissionPrompt() {
     }
     Box(Modifier.fillMaxSize()) {
         EmptyState(
-            Icons.Rounded.FolderOff, "Нет доступа к файлам устройства",
-            "Разрешите доступ к музыке и видео, чтобы показать файлы из памяти телефона.",
-            action = { Button(onClick = { launcher.launch(MediaRepository.mediaPermissions()) }) { Text("Разрешить") } },
+            Icons.Rounded.FolderOff, tr(R.string.no_device_access),
+            tr(R.string.no_device_access_desc),
+            action = { Button(onClick = { launcher.launch(MediaRepository.mediaPermissions()) }) { Text(tr(R.string.action_allow)) } },
         )
     }
 }

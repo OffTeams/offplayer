@@ -1,5 +1,8 @@
 package com.offplayer.app.ui.video
 
+import com.offplayer.app.tr
+import com.offplayer.app.R
+
 import android.view.TextureView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -45,7 +48,7 @@ import com.offplayer.app.video.VideoUiState
 fun VideoMiniPlayer(state: VideoUiState) {
     MiniBar(
         title = state.title,
-        subtitle = if (state.isPlaying) "Видео играет" else "Видео на паузе",
+        subtitle = if (state.isPlaying) tr(R.string.video_playing) else tr(R.string.video_paused),
         progress = if (state.durationMs > 0) state.positionMs.toFloat() / state.durationMs else 0f,
         accent = MaterialTheme.colorScheme.primary,
         onOpen = VideoController::show,
@@ -67,12 +70,12 @@ fun VideoMiniPlayer(state: VideoUiState) {
         IconButton(onClick = VideoController::togglePlay) {
             Icon(
                 if (state.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                if (state.isPlaying) "Пауза" else "Играть",
+                if (state.isPlaying) tr(R.string.action_pause) else tr(R.string.action_play),
                 Modifier.size(30.dp),
             )
         }
         IconButton(onClick = { VideoController.close(stopPlayback = true) }) {
-            Icon(Icons.Rounded.Close, "Закрыть видео")
+            Icon(Icons.Rounded.Close, tr(R.string.close_video))
         }
     }
 }

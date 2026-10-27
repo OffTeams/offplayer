@@ -1,5 +1,9 @@
 package com.offplayer.app.ui.music
 
+import com.offplayer.app.tr
+import com.offplayer.app.trn
+import com.offplayer.app.R
+
 import android.widget.Toast
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.clickable
@@ -118,7 +122,7 @@ fun PlaylistScreen(id: String, currentId: Long?, onBack: () -> Unit) {
                     artUri = items.firstOrNull()?.uri,
                     icon = Icons.AutoMirrored.Rounded.PlaylistPlay,
                     title = playlist.name,
-                    subtitle = "${if (playlist.isMix) "Микс" else "Плейлист"} • ${tracksCount(items.size)} • ${totalDuration(items)}",
+                    subtitle = "${if (playlist.isMix) tr(R.string.mix) else tr(R.string.playlist)} • ${tracksCount(items.size)} • ${totalDuration(items)}",
                     onPlay = { MusicController.playTracks(items, coverUri = cover) },
                     onShuffle = { MusicController.playTracks(items, shuffle = true, coverUri = cover) },
                 ) {
@@ -127,21 +131,21 @@ fun PlaylistScreen(id: String, currentId: Long?, onBack: () -> Unit) {
                         TextButton(onClick = {
                             MusicController.playTracks(items, coverUri = cover)
                             MusicController.setRepeatMode(Player.REPEAT_MODE_ALL)
-                            Toast.makeText(context, "Плейлист будет повторяться бесконечно", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, tr(R.string.playlist_repeat_forever), Toast.LENGTH_SHORT).show()
                         }, enabled = items.isNotEmpty()) {
                             Icon(Icons.Rounded.AllInclusive, null)
                             Spacer(Modifier.width(6.dp))
-                            Text("По кругу")
+                            Text(tr(R.string.on_repeat))
                         }
                         TextButton(onClick = { adding = true }) {
                             Icon(Icons.Rounded.Add, null)
                             Spacer(Modifier.width(6.dp))
-                            Text("Добавить треки")
+                            Text(tr(R.string.add_tracks))
                         }
                     }
                     if (items.size > 1) {
                         Text(
-                            "Перетаскивайте треки за ☰, чтобы изменить порядок",
+                            tr(R.string.drag_tracks_hint),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -164,12 +168,12 @@ fun PlaylistScreen(id: String, currentId: Long?, onBack: () -> Unit) {
                                     onClick = {},
                                     modifier = Modifier.draggableHandle(onDragStopped = { persistOrder() }),
                                 ) {
-                                    Icon(Icons.Rounded.DragHandle, "Перетащить", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Icon(Icons.Rounded.DragHandle, tr(R.string.drag), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             },
                             extraMenu = { dismiss ->
                                 DropdownMenuItem(
-                                    text = { Text("Удалить из плейлиста") },
+                                    text = { Text(tr(R.string.remove_from_playlist)) },
                                     leadingIcon = { Icon(Icons.Rounded.RemoveCircleOutline, null) },
                                     onClick = {
                                         dismiss()
@@ -185,18 +189,18 @@ fun PlaylistScreen(id: String, currentId: Long?, onBack: () -> Unit) {
     }
 
     if (renaming) {
-        TextInputDialog("Переименовать плейлист", playlist.name, "Сохранить",
+        TextInputDialog(tr(R.string.rename_playlist), playlist.name, tr(R.string.action_save),
             onConfirm = { PlaylistStore.rename(id, it) }, onDismiss = { renaming = false })
     }
     if (deleting) {
         AlertDialog(
             onDismissRequest = { deleting = false },
-            title = { Text("Удалить «${playlist.name}»?") },
-            text = { Text("Сами файлы останутся на устройстве.") },
+            title = { Text(tr(R.string.delete_name_q, playlist.name)) },
+            text = { Text(tr(R.string.files_stay)) },
             confirmButton = {
-                TextButton(onClick = { deleting = false; PlaylistStore.delete(id); onBack() }) { Text("Удалить") }
+                TextButton(onClick = { deleting = false; PlaylistStore.delete(id); onBack() }) { Text(tr(R.string.action_delete)) }
             },
-            dismissButton = { TextButton(onClick = { deleting = false }) { Text("Отмена") } },
+            dismissButton = { TextButton(onClick = { deleting = false }) { Text(tr(R.string.action_cancel)) } },
         )
     }
     if (adding) {
@@ -221,19 +225,19 @@ private fun AddTracksDialog(all: List<Track>, alreadyIn: Set<Long>, onConfirm: (
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Column(Modifier.systemBarsPadding()) {
                 TopAppBar(
-                    title = { Text("Выбрано: ${selected.size}") },
-                    navigationIcon = { IconButton(onClick = onDismiss) { Icon(Icons.Rounded.Close, "Закрыть") } },
+                    title = { Text(trn(R.plurals.tracks_selected, selected.size)) },
+                    navigationIcon = { IconButton(onClick = onDismiss) { Icon(Icons.Rounded.Close, tr(R.string.action_close)) } },
                     actions = {
                         Button(
                             enabled = selected.isNotEmpty(),
                             onClick = { onConfirm(selected.toList()); onDismiss() },
                             modifier = Modifier.padding(end = 8.dp),
-                        ) { Text("Добавить") }
+                        ) { Text(tr(R.string.action_add)) }
                     },
                 )
                 OutlinedTextField(
                     value = query, onValueChange = { query = it },
-                    placeholder = { Text("Поиск") }, singleLine = true,
+                    placeholder = { Text(tr(R.string.search)) }, singleLine = true,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 4.dp),

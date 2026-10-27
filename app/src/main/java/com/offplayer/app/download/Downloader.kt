@@ -1,5 +1,9 @@
 package com.offplayer.app.download
 
+import com.offplayer.app.tr
+import com.offplayer.app.trn
+import com.offplayer.app.R
+
 import android.content.Context
 import android.content.Intent
 import androidx.core.content.ContextCompat
@@ -175,9 +179,9 @@ object Downloader {
     fun cancel(id: String) {
         val task = _tasks.value.firstOrNull { it.id == id } ?: return
         when (task.status) {
-            DownloadStatus.QUEUED -> update(id) { it.copy(status = DownloadStatus.CANCELED, message = "Отменено") }
+            DownloadStatus.QUEUED -> update(id) { it.copy(status = DownloadStatus.CANCELED, message = tr(R.string.canceled)) }
             DownloadStatus.RUNNING -> {
-                update(id) { it.copy(status = DownloadStatus.CANCELED, message = "Отменено") }
+                update(id) { it.copy(status = DownloadStatus.CANCELED, message = tr(R.string.canceled)) }
                 runCatching { YoutubeDL.getInstance().destroyProcessById(id) }
             }
             else -> Unit
@@ -351,10 +355,10 @@ object Downloader {
         dir.deleteRecursively()
         dir.mkdirs()
         if (task.forceUpdate) {
-            update(task.id) { it.copy(status = DownloadStatus.RUNNING, progress = 0f, message = "Обновление плагина загрузки…") }
+            update(task.id) { it.copy(status = DownloadStatus.RUNNING, progress = 0f, message = tr(R.string.dl_updating_plugin)) }
             PluginUpdater.update(app)
         }
-        update(task.id) { it.copy(status = DownloadStatus.RUNNING, progress = 0f, message = "Получение информации…") }
+        update(task.id) { it.copy(status = DownloadStatus.RUNNING, progress = 0f, message = tr(R.string.dl_fetching_info)) }
 
         val isAudio = task.kind == DownloadKind.AUDIO
         val opts = task.options
@@ -395,7 +399,7 @@ object Downloader {
                     addOption("--write-subs")
                     if (opts.autoSubs) addOption("--write-auto-subs")
                     // «ru» совпадает и с «ru-RU», и с автопереводом «ru-orig»
-                    addOption("--sub-langs", opts.subLangs.joinToString(",") { "$it.*" } + ",-live_chat")
+                    addOption("--sub-langs", opts.subLangs.joinToString(",") { if (it == "iw") "iw.*,he.*" else "$it.*" } + ",-live_chat")
                     addOption("--embed-subs")
                     // Если субтитров на нужном языке нет, это не должно сорвать загрузку видео
                     if (!opts.playlist) addOption("-i")
@@ -417,7 +421,7 @@ object Downloader {
                 etaSec = if (count > 1 || tracker.postProcessing()) -1 else eta,
                 title = if (opts.playlist) playlistTitle ?: it.title else title ?: it.title,
                 message = (phase ?: it.message?.substringBefore(" • ")).let { m ->
-                    if (count > 1) "$m • $index из $count" else m
+                    if (count > 1) tr(R.string.dl_item_of, m ?: "", index, count) else m
                 },
             )
         }
@@ -444,7 +448,7 @@ object Downloader {
             }
         } catch (e: YoutubeDL.CanceledException) {
             dir.deleteRecursively()
-            update(task.id) { it.copy(status = DownloadStatus.CANCELED, message = "Отменено") }
+            update(task.id) { it.copy(status = DownloadStatus.CANCELED, message = tr(R.string.canceled)) }
             return@withContext
         } catch (t: Throwable) {
             // При -i yt-dlp завершается с ошибкой, если хоть один ролик недоступен — файлы всё равно сохраняем
@@ -486,7 +490,7 @@ object Downloader {
             var listName: String? = null
             media.forEachIndexed { i, file ->
                 update(task.id) {
-                    it.copy(message = if (media.size > 1) "Сохранение ${i + 1} из ${media.size}…" else "Сохранение в медиатеку…")
+                    it.copy(message = if (media.size > 1) tr(R.string.dl_saving_n, i + 1, media.size) else tr(R.string.dl_saving))
                 }
                 val info = readInfo(dir, file)
                 if (listName == null) listName = info?.optString("playlist_title")?.takeIf { it.isNotBlank() && it != "NA" }
@@ -509,25 +513,25 @@ object Downloader {
             }
             var result = DownloadResult(singleKind, savedIds.first().toString())
             if (opts.playlist && savedIds.isNotEmpty()) {
-                val name = listName ?: playlistTitle ?: "Плейлист"
+                val name = listName ?: playlistTitle ?: tr(R.string.playlist)
                 doneTitle = name
                 if (isAudio) {
                     val p = PlaylistStore.create(name, savedIds, isMix = true, sourceUrl = task.url)
                     result = DownloadResult(DownloadResult.Kind.MIX, p.id)
-                    doneMessage = "Микс • ${saved.size} треков • ${totals(saved)}"
+                    doneMessage = tr(R.string.dl_done_mix, trn(R.plurals.tracks, saved.size), totals(saved))
                 } else {
                     val l = VideoLibraryStore.createList(name, savedIds, sourceUrl = task.url)
                     result = DownloadResult(DownloadResult.Kind.LIST, l.id)
-                    doneMessage = "Список • ${saved.size} видео • ${totals(saved)}"
+                    doneMessage = tr(R.string.dl_done_list, trn(R.plurals.videos, saved.size), totals(saved))
                 }
-                if (error != null) doneMessage += " (часть роликов недоступна)"
+                if (error != null) doneMessage += " " + tr(R.string.dl_some_unavailable)
             }
             MediaRepository.refresh(app)
             update(task.id) {
                 it.copy(status = DownloadStatus.DONE, progress = 1f, title = doneTitle, message = doneMessage, result = result)
             }
         } catch (t: Throwable) {
-            update(task.id) { it.copy(status = DownloadStatus.FAILED, message = "Не удалось сохранить файл: ${t.message}") }
+            update(task.id) { it.copy(status = DownloadStatus.FAILED, message = tr(R.string.dl_save_failed, t.message ?: "")) }
         } finally {
             dir.deleteRecursively()
         }
@@ -565,10 +569,10 @@ object Downloader {
         val ext = e.file.substringAfterLast('.', "").uppercase()
         val parts = ArrayList<String>()
         if (e.isAudio) {
-            parts += ext.ifEmpty { "Аудио" }
-            bitrateKbps(LibraryStore.fileOf(e))?.let { parts += "$it кбит/с" }
+            parts += ext.ifEmpty { tr(R.string.audio) }
+            bitrateKbps(LibraryStore.fileOf(e))?.let { parts += tr(R.string.kbps, it) }
         } else {
-            parts += "Видео"
+            parts += tr(R.string.tab_video)
             if (e.height > 0) parts += "${minOf(e.width, e.height)}p"
         }
         if (e.durationMs > 0) parts += formatDuration(e.durationMs)
@@ -579,7 +583,7 @@ object Downloader {
     private fun totals(list: List<LibraryStore.Entry>): String {
         val ms = list.sumOf { it.durationMs }
         val min = (ms / 60_000).toInt()
-        val time = if (min >= 60) "${min / 60} ч ${min % 60} мин" else formatDuration(ms)
+        val time = if (min >= 60) tr(R.string.hours_minutes, min / 60, min % 60) else formatDuration(ms)
         return "$time • ${formatSize(list.sumOf { it.size })}"
     }
 
@@ -608,7 +612,7 @@ object Downloader {
         val alts = ArrayList<String>()
         for (s in subsets) {
             // language_preference < 10 — не оригинальная дорожка (у оригинала 10), чтобы не взять её дважды
-            val dub = s.joinToString("") { "+ba[language^=$it][language_preference<?10]" }
+            val dub = s.joinToString("") { "+ba[language^=${it.substringBefore('-').replace("iw", "he")}][language_preference<?10]" }
             alts += "bv*$h[ext=mp4]+ba[ext=m4a]$dub"
             alts += "bv*$h+ba$dub"
         }
@@ -648,7 +652,7 @@ object Downloader {
             Chapter(
                 startMs = (c.optDouble("start_time", 0.0) * 1000).toLong(),
                 endMs = (c.optDouble("end_time", 0.0) * 1000).toLong(),
-                title = c.optString("title").ifBlank { "Эпизод ${i + 1}" },
+                title = c.optString("title").ifBlank { tr(R.string.chapter_n, i + 1) },
             )
         }.filter { it.endMs > it.startMs }
     }
@@ -660,14 +664,14 @@ object Downloader {
     }
 
     private fun phase(line: String): String? = when {
-        line.startsWith("[ExtractAudio]") -> "Конвертация аудио…"
-        line.startsWith("[Merger]") -> "Объединение видео и звука…"
-        line.startsWith("[EmbedThumbnail]") || line.startsWith("[ThumbnailsConvertor]") -> "Добавление обложки…"
-        line.startsWith("[Metadata]") -> "Запись тегов…"
-        line.startsWith("[EmbedSubtitle]") -> "Добавление субтитров…"
-        line.startsWith("[Fixup") -> "Проверка файла…"
-        line.startsWith("[VideoConvertor]") || line.startsWith("[VideoRemuxer]") -> "Перепаковка видео…"
-        line.startsWith("[download]") && line.contains('%') -> "Загрузка…"
+        line.startsWith("[ExtractAudio]") -> tr(R.string.ph_extract)
+        line.startsWith("[Merger]") -> tr(R.string.ph_merge)
+        line.startsWith("[EmbedThumbnail]") || line.startsWith("[ThumbnailsConvertor]") -> tr(R.string.ph_thumbnail)
+        line.startsWith("[Metadata]") -> tr(R.string.ph_metadata)
+        line.startsWith("[EmbedSubtitle]") -> tr(R.string.ph_subtitles)
+        line.startsWith("[Fixup") -> tr(R.string.ph_fixup)
+        line.startsWith("[VideoConvertor]") || line.startsWith("[VideoRemuxer]") -> tr(R.string.ph_remux)
+        line.startsWith("[download]") && line.contains('%') -> tr(R.string.downloading)
         else -> null
     }
 
@@ -678,13 +682,13 @@ object Downloader {
         return when {
             msg.contains("Unable to resolve host", true) || msg.contains("Network is unreachable", true) ||
                 msg.contains("timed out", true) || msg.contains("Connection reset", true) ->
-                "Нет подключения к интернету" to FailureKind.NETWORK
-            msg.contains("Private video", true) -> "Видео недоступно (приватное)" to FailureKind.UNAVAILABLE
+                tr(R.string.err_no_internet) to FailureKind.NETWORK
+            msg.contains("Private video", true) -> tr(R.string.err_private) to FailureKind.UNAVAILABLE
             msg.contains("Video unavailable", true) || msg.contains("has been removed", true) ->
-                "Видео недоступно или удалено" to FailureKind.UNAVAILABLE
+                tr(R.string.err_unavailable) to FailureKind.UNAVAILABLE
             msg.contains("members-only", true) || msg.contains("Join this channel", true) ->
-                "Видео только для спонсоров канала" to FailureKind.UNAVAILABLE
-            else -> (errLine?.take(200) ?: "Не удалось скачать") to FailureKind.PLUGIN
+                tr(R.string.err_members) to FailureKind.UNAVAILABLE
+            else -> (errLine?.take(200) ?: tr(R.string.download_failed)) to FailureKind.PLUGIN
         }
     }
 }
