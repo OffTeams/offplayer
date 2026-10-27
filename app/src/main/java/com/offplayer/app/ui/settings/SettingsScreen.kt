@@ -94,6 +94,10 @@ import com.offplayer.app.data.DeviceMediaMode
 import com.offplayer.app.data.LibraryStore
 import com.offplayer.app.data.MediaRepository
 import com.offplayer.app.data.PlayOrder
+import com.offplayer.app.update.AppUpdater
+import com.offplayer.app.update.UpdateState
+import androidx.compose.material.icons.rounded.SystemUpdate
+import androidx.compose.material.icons.rounded.Update
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.Bedtime
@@ -211,7 +215,7 @@ private fun RootPage(open: (SettingsPage) -> Unit) {
     NavRow(Icons.Rounded.Download, "Загрузки", "Качество, аудиодорожки, субтитры") { open(SettingsPage.DOWNLOADS) }
     Divider()
     Header("Информация")
-    NavRow(Icons.Rounded.Info, "О приложении", "Версия, место в памяти") { open(SettingsPage.ABOUT) }
+    NavRow(Icons.Rounded.Info, "О приложении", "Версия, обновления, место в памяти") { open(SettingsPage.ABOUT) }
 }
 
 @Composable
@@ -391,8 +395,40 @@ private fun AboutPage() {
     val used = remember { LibraryStore.all().sumOf { it.size } }
     val count = remember { LibraryStore.all().size }
     InfoRow(Icons.Rounded.Info, "Версия", "OFFPlayer $version")
+    UpdateRows()
     InfoRow(Icons.Rounded.Storage, "Медиатека", "Файлов: $count • ${formatSize(used)}")
-    Note("Плагин загрузки обновляется автоматически при подключении к сети.")
+    Note("Плагин загрузки обновляется автоматически при подключении к сети. Обновления приложения проверяются по подписи — установится только версия, подписанная тем же ключом.")
+}
+
+// ---------- Обновления приложения ----------
+
+@Composable
+private fun UpdateRows() {
+    val context = LocalContext.current
+    val state by AppUpdater.state.collectAsStateWithLifecycle()
+    val auto by AppUpdater.autoCheck.collectAsStateWithLifecycle()
+    val status = when (val s = state) {
+        UpdateState.Checking -> "Проверка…"
+        UpdateState.UpToDate -> "Установлена последняя версия"
+        is UpdateState.Available -> "Доступна версия ${s.info.version} — нажмите, чтобы обновить"
+        is UpdateState.Downloading -> "Загрузка ${s.info.version}… ${(s.progress * 100).toInt()}%"
+        is UpdateState.Installing -> "Подтвердите установку"
+        is UpdateState.NeedsPermission -> "Нужно разрешить установку приложений"
+        is UpdateState.Error -> s.message
+        UpdateState.Idle -> "Нажмите, чтобы проверить"
+    }
+    SettingRow(Icons.Rounded.SystemUpdate, "Проверить обновления", status, onClick = {
+        if (state is UpdateState.Available || state is UpdateState.NeedsPermission || state is UpdateState.Error && (state as UpdateState.Error).info != null) {
+            AppUpdater.showPrompt()
+        } else {
+            AppUpdater.check(context, manual = true)
+        }
+    })
+    SwitchRow(
+        Icons.Rounded.Update, "Проверять автоматически",
+        "Раз в 12 часов при запуске — новые версии из GitHub",
+        auto, { AppUpdater.setAutoCheck(context, it) },
+    )
 }
 
 // ---------- Медиатека: контент устройства ----------

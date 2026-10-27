@@ -344,6 +344,12 @@ class MainActivity : ComponentActivity() {
         UiEvents.appVisible = true
     }
 
+    override fun onResume() {
+        super.onResume()
+        // Вернулись из настроек «Установка неизвестных приложений» — продолжаем обновление
+        com.offplayer.app.update.AppUpdater.onPermissionResult(this)
+    }
+
     override fun onStop() {
         super.onStop()
         UiEvents.appVisible = false

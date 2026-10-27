@@ -21,6 +21,7 @@ class OffPlayerApp : Application(), ImageLoaderFactory {
         LibraryStore.init(this)
         com.offplayer.app.data.PodcastProgress.init(this)
         com.offplayer.app.data.NetworkState.init(this)
+        com.offplayer.app.update.AppUpdater.init(this)
         MediaRepository.start(this)
         // Фоновая проверка актуальности плагина загрузки (при подключении к сети и ежедневно)
         com.offplayer.app.download.PluginUpdater.init(this)

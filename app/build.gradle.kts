@@ -17,8 +17,8 @@ android {
         applicationId = "com.offplayer.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 40
-        versionName = "1.14.4"
+        versionCode = 41
+        versionName = "1.15.0"
     }
 
     // Собственная подпись релиза: ключ в keystore/, пароли в keystore.properties (не коммитятся)

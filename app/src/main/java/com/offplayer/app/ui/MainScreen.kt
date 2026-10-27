@@ -320,6 +320,8 @@ fun MainScreen(
 
     // Плашка «Загрузка завершена» внутри приложения (вместо уведомления в шторке)
     DownloadDoneBanner()
+    // Проверка обновлений приложения и окно «Доступна новая версия»
+    com.offplayer.app.update.UpdateDialogHost()
 
     BackHandler(playerExpanded && !videoOpen) { playerExpanded = false }
     // Настройки — поверх всего, выезжают справа
