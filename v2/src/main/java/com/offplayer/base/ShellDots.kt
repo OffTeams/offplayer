@@ -10,6 +10,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -88,6 +89,10 @@ fun DotRailShell() {
         Catalog.headerModules().map { RailItem(it.id, it.title, it.icon, true) } +
         listOf(Catalog.downloads, Catalog.settings).map { RailItem(it.id, it.title, it.icon, true) }
 
+    val pal = LocalPalette.current
+    BoxWithConstraints(Modifier.fillMaxSize().background(pal.base)) {
+        HeaderGradient(maxHeight * 0.62f, Modifier.scrollWithPage())
+    }
     BoxWithConstraints(Modifier.fillMaxSize().systemBarsPadding()) {
         // В портретной сбоку точки маленькие и лежат поверх края контента — модуль не теряет ширину.
         // В альбомной ширины с запасом — лента получает свою полосу и не закрывает содержимое.
@@ -287,7 +292,8 @@ private fun DotRail(items: List<RailItem>, selectedId: String?, side: RailSide, 
                 Box(
                     Modifier.offset(topLeft.x, topLeft.y)
                         .size(if (vertical) 22.dp else bgLen, if (vertical) bgLen else 22.dp)
-                        .glass(CircleShape, strength = 1.6f)
+                        .shadow(if (Prefs.lightMode.value) 0.dp else 8.dp, CircleShape)
+                        .block(CircleShape)
                         .then(if (moving) Modifier.border(1.5.dp, MaterialTheme.colorScheme.primary, CircleShape) else Modifier),
                 )
             }

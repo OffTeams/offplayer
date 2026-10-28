@@ -61,13 +61,15 @@ data class ModuleEnv(
      */
     val reservedCorner: Corner? = null,
     val reservedWidth: androidx.compose.ui.unit.Dp = androidx.compose.ui.unit.Dp(0f),
+    /** Сколько снизу перекрыто основой (плавающая панель) — списки докручиваются из-под неё. */
+    val bottomInset: androidx.compose.ui.unit.Dp = androidx.compose.ui.unit.Dp(0f),
 ) {
     val reserveTopStart get() = if (reservedCorner == Corner.TOP_START) reservedWidth else androidx.compose.ui.unit.Dp(0f)
     val reserveTopEnd get() = if (reservedCorner == Corner.TOP_END) reservedWidth else androidx.compose.ui.unit.Dp(0f)
     val reserveBottomStart get() = if (reservedCorner == Corner.BOTTOM_START) reservedWidth else androidx.compose.ui.unit.Dp(0f)
     val reserveBottomEnd get() = if (reservedCorner == Corner.BOTTOM_END) reservedWidth else androidx.compose.ui.unit.Dp(0f)
     /** Нижний отступ списков, чтобы последние строки можно было прокрутить из-под кнопок. */
-    val listBottom get() = if (reservedCorner == Corner.BOTTOM_START || reservedCorner == Corner.BOTTOM_END)
+    val listBottom get() = bottomInset + if (reservedCorner == Corner.BOTTOM_START || reservedCorner == Corner.BOTTOM_END)
         androidx.compose.ui.unit.Dp(56f) else androidx.compose.ui.unit.Dp(8f)
 }
 

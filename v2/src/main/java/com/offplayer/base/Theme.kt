@@ -6,19 +6,12 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import androidx.compose.animation.core.Animatable
-import androidx.compose.runtime.LaunchedEffect
-import kotlinx.coroutines.launch
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
@@ -27,6 +20,7 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,43 +28,63 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.Dp
 import androidx.core.graphics.ColorUtils
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import kotlin.math.PI
-import kotlin.math.cos
-import kotlin.math.sin
+import kotlinx.coroutines.launch
 
 /** Фирменный коралл — ярлык пластинки на иконке. */
 val Coral = Color(0xFFFF7A59)
 
 /**
- * Палитра основы в духе плеера 1.x: чёрная (или белая) база, белый (чёрный) текст,
- * акцент и пятна живого фона — все из одного семейства оттенков, без серых и бурых тонов.
+ * Палитра основы (направление B2): нейтральная база, белые (тёмные) блоки
+ * и градиент из цвета текущего трека (или обоев) в верхней части экрана.
  */
 data class OffPalette(
     val dark: Boolean,
+    /** Фон экрана. */
     val base: Color,
+    /** Блоки: карточки, списки, плитки, нижняя панель. */
+    val surface: Color,
+    /** Поля ввода и подложки переключателей вне градиента. */
+    val surfaceVariant: Color,
+    val divider: Color,
     val content: Color,
     val contentSecondary: Color,
     val accent: Color,
-    val blobTop: Color,
-    val blobMid: Color,
-    val blobBottom: Color,
-    val blobAccent: Color,
-    /** Живой фон с плывущими пятнами (нет в классическом режиме). */
-    val living: Boolean,
-)
+    /** Подложка активной вкладки и выбранных элементов. */
+    val accentContainer: Color,
+    /** Градиент: верх, середина, два цветовых пятна. */
+    val gradTop: Color,
+    val gradMid: Color,
+    val spotA: Color,
+    val spotB: Color,
+    /** Есть ли градиент (нет в классическом режиме). */
+    val gradient: Boolean,
+) {
+    /** Цвет текста и значков поверх градиента. */
+    val onGradient: Color get() = if (gradient) Color.White else content
+}
+
+private val LightBase = Color(0xFFF2F3F7)
+private val DarkBase = Color(0xFF0E0F12)
 
 val LocalPalette = staticCompositionLocalOf {
-    OffPalette(true, Color.Black, Color.White, Color.White.copy(alpha = 0.7f), Coral, Color.Black, Color.Black, Color.Black, Coral, true)
+    OffPalette(
+        dark = true, base = DarkBase, surface = Color(0xFF1B1D22), surfaceVariant = Color(0xFF262930),
+        divider = Color(0xFF272A31), content = Color(0xFFF3F4F6), contentSecondary = Color(0xFFA3A7B3),
+        accent = Coral, accentContainer = Color(0xFF4A2219),
+        gradTop = Color(0xFF5C2116), gradMid = Color(0xFF3A160F), spotA = Color(0xFFB23A26), spotB = Color(0xFFC97A2C),
+        gradient = true,
+    )
 }
 
 private fun hsl(h: Float, s: Float, l: Float) =
@@ -78,85 +92,80 @@ private fun hsl(h: Float, s: Float, l: Float) =
 
 private fun Color.hslParts(): FloatArray = FloatArray(3).also { ColorUtils.colorToHSL(toArgb(), it) }
 
-private fun Color.readableOnDark(): Color = when {
-    luminance() < 0.18f -> lerp(this, Color.White, 0.45f)
-    luminance() < 0.30f -> lerp(this, Color.White, 0.25f)
-    else -> this
-}
-
-private fun Color.readableOnLight(): Color = when {
-    luminance() > 0.60f -> lerp(this, Color.Black, 0.50f)
-    luminance() > 0.40f -> lerp(this, Color.Black, 0.30f)
-    else -> this
-}
-
-/**
- * Пятна — один оттенок (h) и два соседних (±20°), разной светлоты: смесь остаётся чистой.
- * Насыщенность ограничена снизу, чтобы фон не уходил в серый.
- */
-private fun livingPalette(h: Float, s: Float, dark: Boolean): OffPalette {
+/** Палитра из оттенка трека (или обоев): градиент — сам оттенок и соседний (+35°), блоки нейтральные. */
+private fun gradientPalette(h: Float, s: Float, dark: Boolean): OffPalette {
     val sat = s.coerceIn(0.45f, 0.9f)
     return if (dark) OffPalette(
         dark = true,
-        base = Color.Black,
-        content = Color.White,
-        contentSecondary = Color.White.copy(alpha = 0.7f),
-        accent = hsl(h, sat, 0.62f).readableOnDark(),
-        blobTop = hsl(h, sat * 0.85f, 0.26f),
-        blobMid = hsl(h + 20f, sat * 0.8f, 0.22f),
-        blobBottom = hsl(h - 20f, sat * 0.85f, 0.2f),
-        blobAccent = hsl(h, sat, 0.5f).copy(alpha = 0.32f),
-        living = true,
+        base = DarkBase,
+        surface = Color(0xFF1B1D22),
+        surfaceVariant = Color(0xFF262930),
+        divider = Color(0xFF272A31),
+        content = Color(0xFFF3F4F6),
+        contentSecondary = Color(0xFFA3A7B3),
+        accent = hsl(h, sat * 0.85f, 0.72f),
+        accentContainer = hsl(h, sat * 0.45f, 0.2f),
+        gradTop = hsl(h, sat * 0.6f, 0.22f),
+        gradMid = hsl(h, sat * 0.6f, 0.15f),
+        spotA = hsl(h, sat * 0.65f, 0.42f),
+        spotB = hsl(h + 35f, sat * 0.6f, 0.46f),
+        gradient = true,
     ) else OffPalette(
         dark = false,
-        base = Color.White,
-        content = Color(0xFF111111),
-        contentSecondary = Color(0xFF111111).copy(alpha = 0.62f),
-        accent = hsl(h, sat, 0.55f).readableOnLight(),
-        blobTop = hsl(h, sat * 0.9f, 0.82f),
-        blobMid = hsl(h + 20f, sat * 0.8f, 0.86f),
-        blobBottom = hsl(h - 20f, sat * 0.85f, 0.84f),
-        blobAccent = hsl(h, sat, 0.72f).copy(alpha = 0.45f),
-        living = true,
+        base = LightBase,
+        surface = Color.White,
+        surfaceVariant = Color(0xFFE4E6EC),
+        divider = Color(0xFFECEDF1),
+        content = Color(0xFF15171C),
+        contentSecondary = Color(0xFF5D6170),
+        accent = hsl(h, sat * 0.62f, 0.46f),
+        accentContainer = hsl(h, sat * 0.8f, 0.92f),
+        gradTop = hsl(h, sat * 0.6f, 0.32f),
+        gradMid = hsl(h, sat * 0.5f, 0.58f),
+        spotA = hsl(h, sat * 0.62f, 0.44f),
+        spotB = hsl(h + 35f, sat * 0.45f, 0.45f),
+        gradient = true,
     )
 }
 
-/** Классический режим: статичный фон пресета и коралловый акцент, без пятен. */
+/** Классический режим: статичный фон пресета и коралловый акцент, без градиента. */
 private fun classicPalette(p: ClassicPreset): OffPalette {
     val bg = Color(p.background)
-    val fg = if (p.dark) Color.White else Color(0xFF111111)
+    val fg = if (p.dark) Color(0xFFF3F4F6) else Color(0xFF15171C)
+    val surface = if (p.dark) lerp(bg, Color.White, 0.08f) else if (bg == Color.White) Color(0xFFF2F3F7) else Color.White
     return OffPalette(
-        dark = p.dark, base = bg, content = fg, contentSecondary = fg.copy(alpha = if (p.dark) 0.7f else 0.62f),
+        dark = p.dark, base = bg, surface = surface,
+        surfaceVariant = lerp(surface, fg, 0.08f), divider = lerp(surface, fg, 0.07f),
+        content = fg, contentSecondary = lerp(fg, bg, 0.38f),
         accent = if (p.dark) Coral else Color(0xFFC8462A),
-        blobTop = bg, blobMid = bg, blobBottom = bg, blobAccent = bg, living = false,
+        accentContainer = lerp(surface, Coral, if (p.dark) 0.25f else 0.18f),
+        gradTop = bg, gradMid = bg, spotA = bg, spotB = bg, gradient = false,
     )
 }
 
-/** Схема Material из палитры: поверхности — база с лёгким оттенком акцента. */
+/** Схема Material из палитры — для стандартных компонентов (диалоги, переключатели, ползунки). */
 private fun schemeOf(p: OffPalette): ColorScheme {
-    val tint = lerp(p.blobTop, p.accent, 0.35f)
-    fun layer(k: Float) = lerp(p.base, if (p.dark) lerp(tint, Color.White, 0.08f) else lerp(tint, Color.Black, 0.04f), k)
-    val onAccent = if (p.accent.luminance() > 0.45f) Color(0xFF111111) else Color.White
     val common = if (p.dark) darkColorScheme() else lightColorScheme()
+    val onAccent = if (p.dark) Color(0xFF15171C) else Color.White
     return common.copy(
         primary = p.accent,
         onPrimary = onAccent,
-        primaryContainer = lerp(p.base, p.accent, if (p.dark) 0.32f else 0.22f),
+        primaryContainer = p.accentContainer,
         onPrimaryContainer = p.content,
-        secondaryContainer = lerp(p.base, p.accent, if (p.dark) 0.2f else 0.14f),
+        secondaryContainer = p.accentContainer,
         onSecondaryContainer = p.content,
         background = p.base,
         onBackground = p.content,
         surface = p.base,
         onSurface = p.content,
         onSurfaceVariant = p.contentSecondary,
-        surfaceContainerLowest = p.base,
-        surfaceContainerLow = layer(0.10f),
-        surfaceContainer = layer(0.16f),
-        surfaceContainerHigh = layer(0.22f),
-        surfaceContainerHighest = layer(0.30f),
-        outlineVariant = p.content.copy(alpha = 0.14f),
-        outline = p.content.copy(alpha = 0.4f),
+        surfaceContainerLowest = p.surface,
+        surfaceContainerLow = p.surface,
+        surfaceContainer = p.surface,
+        surfaceContainerHigh = p.surface,
+        surfaceContainerHighest = p.surfaceVariant,
+        outlineVariant = p.divider,
+        outline = p.contentSecondary,
     )
 }
 
@@ -197,7 +206,7 @@ private fun rememberWallpaperSeed(): Color? {
 }
 
 /**
- * Смена цвета идёт по кругу оттенков кратчайшим путём (зелёный → жёлтый → коралл),
+ * Смена цвета идёт по кругу оттенков кратчайшим путём (фиолетовый → розовый → коралл),
  * а не прямым смешиванием RGB, которое проходит через бурый и серый.
  */
 @Composable
@@ -223,67 +232,58 @@ fun OffTheme(content: @Composable () -> Unit) {
     val mode = Prefs.colorMode.value
     val wallpaperSeed = rememberWallpaperSeed()
 
-    // Пока играет трек, цвета основы берутся из его обложки; иначе — из обоев
+    // Пока играет трек — цвет из его обложки, иначе — из обоев
     val playingTint = Playback.track?.color?.takeIf { mode == ColorMode.WALLPAPER && Playback.playing }
-    val (hue, sat) = animateSeed(playingTint ?: wallpaperSeed ?: Coral, if (Prefs.lightMode.value) 200 else 700)
+    val (hue, sat) = animateSeed(playingTint ?: wallpaperSeed ?: Coral, if (Prefs.lightMode.value) 200 else 800)
 
     val palette = when (mode) {
-        ColorMode.WALLPAPER -> livingPalette(hue, sat, systemDark)
+        ColorMode.WALLPAPER -> gradientPalette(hue, sat, systemDark)
         ColorMode.CLASSIC -> classicPalette(Prefs.preset.value)
     }
-    val scheme = schemeOf(palette)
     CompositionLocalProvider(LocalPalette provides palette) {
-        MaterialTheme(colorScheme = scheme) {
-            // Текст и значки вне Surface по умолчанию берут цвет содержимого, а не чёрный
+        MaterialTheme(colorScheme = schemeOf(palette)) {
             CompositionLocalProvider(LocalContentColor provides palette.content, content = content)
         }
     }
 }
 
 /**
- * Живой фон, как у плеера 1.x: медленно плывущие цветные пятна, ярче во время музыки,
- * и затемнение (осветление) книзу под элементы управления. В лёгком режиме пятна стоят.
+ * Градиент от трека в верхней части экрана: глубокий цвет сверху, светлее к середине,
+ * два цветовых пятна по углам — и плавный уход в фон. [height] — докуда доходит цвет.
  */
 @Composable
-fun LivingBackground(modifier: Modifier = Modifier, still: Boolean = false) {
+fun HeaderGradient(height: Dp, modifier: Modifier = Modifier, solid: Float = 0.4f) {
     val pal = LocalPalette.current
-    if (!pal.living) {
-        Box(modifier.fillMaxSize().background(pal.base))
-        return
-    }
-    val still = still || Prefs.lightMode.value
-    val phase = if (still) 0.8f else rememberInfiniteTransition(label = "bg").animateFloat(
-        0f, (2 * PI).toFloat(), infiniteRepeatable(tween(24_000, easing = LinearEasing)), label = "phase",
-    ).value
-    val energy by animateFloatAsState(if (Playback.playing || Playback.videoPlaying) 1f else 0.6f, tween(1200), label = "energy")
-    Box(modifier.fillMaxSize().background(pal.base)) {
-        Canvas(Modifier.fillMaxSize()) {
+    if (!pal.gradient) return
+    Box(
+        modifier.fillMaxWidth().height(height).drawBehind {
             val w = size.width
             val h = size.height
-            // Размер пятен — от длинной стороны, чтобы цвет покрывал весь экран, а не только верх
-            val r = maxOf(w, h)
-            fun blob(color: Color, cx: Float, cy: Float, radius: Float) = drawCircle(
-                brush = Brush.radialGradient(listOf(color, color.copy(alpha = color.alpha * 0.5f), Color.Transparent),
-                    center = Offset(cx, cy), radius = radius),
-                radius = radius, center = Offset(cx, cy),
-            )
-            // Пятна разнесены сверху донизу и медленно плывут каждое по своей траектории
-            blob(pal.blobTop, w * (0.2f + 0.15f * cos(phase)), h * (0.1f + 0.05f * sin(phase)), r * 0.55f)
-            blob(pal.blobMid, w * (0.88f + 0.1f * sin(phase * 2)), h * (0.38f + 0.07f * cos(phase)), r * 0.45f)
-            blob(pal.blobBottom, w * (0.12f + 0.14f * cos(phase + 2f)), h * (0.68f + 0.06f * sin(phase + 1f)), r * 0.45f)
-            blob(pal.blobTop, w * (0.8f + 0.12f * cos(phase + 1f)), h * (0.96f + 0.04f * sin(phase * 2)), r * 0.5f)
-            blob(pal.blobAccent.copy(alpha = pal.blobAccent.alpha * energy),
-                w * (0.5f + 0.25f * sin(phase + 0.5f)), h * (0.52f + 0.12f * cos(phase * 2)), r * 0.35f)
-        }
-        // Лёгкое ровное приглушение для читаемости текста — без выбеливания (затемнения) низа
-        Box(
-            Modifier.fillMaxSize().background(
+            // [solid] — доля высоты, до которой цвет держится насыщенным (в плеере — до самих кнопок)
+            drawRect(
                 Brush.verticalGradient(
-                    0f to pal.base.copy(alpha = 0.10f),
-                    0.5f to pal.base.copy(alpha = 0.06f),
-                    1f to pal.base.copy(alpha = 0.18f),
+                    0f to pal.gradTop,
+                    solid to pal.gradMid,
+                    1f to pal.gradMid.copy(alpha = 0f),
                 )
             )
-        )
-    }
+            drawRect(
+                Brush.radialGradient(
+                    listOf(pal.spotA, pal.spotA.copy(alpha = 0f)),
+                    center = Offset(w * 0.08f, 0f), radius = maxOf(w, h) * 0.8f,
+                )
+            )
+            drawRect(
+                Brush.radialGradient(
+                    listOf(pal.spotB.copy(alpha = 0.85f), pal.spotB.copy(alpha = 0f)),
+                    center = Offset(w, h * 0.1f), radius = w * 0.75f,
+                )
+            )
+            // Низ градиента растворяется в фоне
+            drawRect(Brush.verticalGradient(maxOf(0.55f, solid) to Color.Transparent, 1f to pal.base))
+        }
+    )
 }
+
+/** Сплошной фон экрана. */
+fun Modifier.screenBackground(pal: OffPalette): Modifier = background(pal.base)

@@ -111,7 +111,6 @@ fun CardStackShell() {
     val corner = Prefs.cardCorner.value
     val light = Prefs.lightMode.value
     val pal = LocalPalette.current
-    val glassCards = pal.living && !light
 
     BoxWithConstraints(Modifier.fillMaxSize().systemBarsPadding()) {
         val boxW = maxWidth
@@ -336,12 +335,12 @@ fun CardStackShell() {
                                     clip = true
                                     shadowElevation = if (light) 0f else (if (front) 14.dp else 6.dp).toPx()
                                 }
-                                .background(MaterialTheme.colorScheme.surfaceContainerLow)
-                                .then(if (glassCards) Modifier.border(0.5.dp, pal.content.copy(alpha = 0.12f), shape) else Modifier),
+                                .background(pal.base)
+                                .border(0.5.dp, pal.content.copy(alpha = 0.10f), shape),
                         ) {
-                            // Внутри карточки — свой живой фон плеера 1.x (у передней и играющей движется,
-                            // у остальных стоит): карточка непрозрачная, задние не просвечивают сквозь переднюю
-                            if (glassCards) LivingBackground(still = !live)
+                            // У каждой карточки свой градиент от трека сверху; карточка непрозрачная —
+                            // задние не просвечивают сквозь переднюю
+                            HeaderGradient(cardH * 0.62f, if (front) Modifier.scrollWithPage() else Modifier)
                             if (live) {
                                 holder.SaveableStateProvider(id) {
                                     ModuleHost(
@@ -394,9 +393,7 @@ private fun CornerButtons(corner: Corner) {
     Box(Modifier.fillMaxSize()) {
         Row(Modifier.align(align), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             (Catalog.headerModules() + Catalog.downloads + Catalog.settings).forEach { m ->
-                Box(Modifier.size(CORNER_BUTTON).glass(CircleShape, strength = 1.8f), contentAlignment = Alignment.Center) {
-                    BouncyIconButton(onClick = { Nav.select(m.id) }, size = CORNER_BUTTON) { Icon(m.icon, m.title, Modifier.size(20.dp)) }
-                }
+                GlassIconButton(m.icon, m.title, CORNER_BUTTON, 20.dp) { Nav.select(m.id) }
             }
         }
     }
@@ -408,11 +405,7 @@ private fun CardSnapshot(spec: ModuleSpec) {
     val env = LocalModuleEnv.current
     Column(Modifier.fillMaxSize().padding(20.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = env.reserveTopStart)) {
-            Box(Modifier.size(36.dp).clip(CircleShape).background(spec.color.copy(alpha = 0.25f)), contentAlignment = Alignment.Center) {
-                Icon(spec.icon, null, tint = spec.color)
-            }
-            Text(spec.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(start = 12.dp))
+            ScreenTitle(spec.title)
         }
         Spacer(Modifier.height(20.dp))
         repeat(7) { i ->

@@ -52,6 +52,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 private const val STEPS = 5
 
@@ -63,12 +64,15 @@ fun FirstRunWizard() {
     val context = LocalContext.current
     val weak = remember { isWeakDevice(context) }
 
+    val pal = LocalPalette.current
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize().background(pal.base)) {
+    HeaderGradient(maxHeight * 0.55f)
     Column(Modifier.fillMaxSize().systemBarsPadding().padding(20.dp)) {
         // Индикатор шагов
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(bottom = 12.dp)) {
             repeat(STEPS) { i ->
                 Box(Modifier.height(4.dp).weight(1f).clip(CircleShape)
-                    .background(if (i <= step) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHighest))
+                    .background(if (i <= step) pal.onGradient else pal.onGradient.copy(alpha = 0.3f)))
             }
         }
         AnimatedContent(
@@ -99,6 +103,7 @@ fun FirstRunWizard() {
             }
         }
     }
+    }
 }
 
 private fun isWeakDevice(context: Context): Boolean {
@@ -109,9 +114,10 @@ private fun isWeakDevice(context: Context): Boolean {
 
 @Composable
 private fun StepTitle(title: String, text: String) {
-    Text(title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
+    val pal = LocalPalette.current
+    ScreenTitle(title)
     Spacer(Modifier.height(8.dp))
-    Text(text, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Text(text, color = pal.onGradient.copy(alpha = 0.85f), fontSize = 16.sp)
     Spacer(Modifier.height(20.dp))
 }
 
@@ -120,15 +126,15 @@ private fun WelcomeStep() {
     Column(Modifier.fillMaxWidth().padding(top = 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         VinylLogo(180.dp, rotating = true)
         Spacer(Modifier.height(28.dp))
-        Text("OFFPlayer 2.0", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
+        ScreenTitle("OFFPlayer 2.0")
         Spacer(Modifier.height(8.dp))
         Text(
             "Основа, которую вы собираете сами: модули добавляют вкладки, а вид главного экрана вы выбираете под себя.",
-            textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center, color = LocalPalette.current.onGradient.copy(alpha = 0.85f), fontSize = 16.sp,
         )
         Spacer(Modifier.height(8.dp))
-        Text("Макет 2.0.0.2.1R — модули-пустышки для проверки дизайна", style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.primary, textAlign = TextAlign.Center)
+        Text("Макет 2.0.0.2.1R — модули-пустышки для проверки дизайна", fontSize = 13.sp,
+            color = LocalPalette.current.onGradient.copy(alpha = 0.7f), textAlign = TextAlign.Center)
     }
 }
 
@@ -138,10 +144,9 @@ private fun StyleStep() {
     ShellStyle.entries.forEach { s ->
         val sel = Prefs.shell.value == s
         Row(
-            Modifier.fillMaxWidth().padding(vertical = 6.dp).clip(RoundedCornerShape(20.dp))
-                .border(if (sel) 2.dp else 1.dp, if (sel) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
-                    RoundedCornerShape(20.dp))
-                .clickable { Prefs.shell.value = s }.padding(12.dp),
+            Modifier.fillMaxWidth().padding(vertical = 5.dp).block(RoundedCornerShape(22.dp))
+                .border(2.dp, if (sel) LocalPalette.current.accent else Color.Transparent, RoundedCornerShape(22.dp))
+                .bouncyClick { Prefs.shell.value = s }.padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             StylePreview(s)
@@ -187,7 +192,7 @@ private fun ColorStep() {
     StepTitle("Цвета", "По умолчанию OFFPlayer берёт цвета из обоев, а во время музыки подстраивается под трек.")
     Chips(ColorMode.entries, Prefs.colorMode.value, { it.title }, inset = 0.dp) { Prefs.colorMode.value = it }
     Spacer(Modifier.height(8.dp))
-    Text(Prefs.colorMode.value.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Text(Prefs.colorMode.value.description, fontSize = 13.sp, color = LocalPalette.current.onGradient.copy(alpha = 0.85f))
     if (Prefs.colorMode.value == ColorMode.CLASSIC) {
         Spacer(Modifier.height(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -212,8 +217,8 @@ private fun PerformanceStep(weak: Boolean) {
         else "Лёгкий режим заменяет размытие, градиенты и живые задние карточки на простые решения.",
     )
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .clickable { Prefs.lightMode.value = !Prefs.lightMode.value }.padding(16.dp),
+        Modifier.fillMaxWidth().block(RoundedCornerShape(22.dp))
+            .bouncyClick { Prefs.lightMode.value = !Prefs.lightMode.value }.padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {

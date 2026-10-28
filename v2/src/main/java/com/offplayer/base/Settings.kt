@@ -64,6 +64,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.shape.RoundedCornerShape
 
 private const val ROOT = "root"
 private const val APPEARANCE = "appearance"
@@ -83,13 +86,9 @@ fun SettingsScreen() {
     val open = { p: String -> stack = stack + p }
     BackHandler(stack.size > 1) { back() }
 
+    val pal = LocalPalette.current
     Column(Modifier.fillMaxSize()) {
-        TopAppBar(
-            title = { Text(pageTitle(page)) },
-            navigationIcon = { IconButton(onClick = back) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Назад") } },
-            colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
-            windowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
-        )
+        ServiceHeader(pageTitle(page), back)
         AnimatedContent(
             targetState = page,
             transitionSpec = {
@@ -102,10 +101,12 @@ fun SettingsScreen() {
             modifier = Modifier.clipToBounds(),
             label = "settingsPage",
         ) { p ->
-            // Непрозрачный фон: во время перехода старая страница не просвечивает сквозь новую
+            // Непрозрачный фон: во время перехода старая страница не просвечивает сквозь новую.
+            // Градиент страницы стоит там же, где градиент под шапкой, — шва на границе нет.
+            Box(Modifier.fillMaxSize().background(pal.base)) {
+            HeaderGradient(360.dp, Modifier.offset(y = (-58).dp))
             Column(
-                Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
-                    .verticalScroll(rememberScrollState()).padding(bottom = 24.dp),
+                Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 24.dp),
             ) {
                 when {
                     p == ROOT -> RootPage(open)
@@ -116,6 +117,7 @@ fun SettingsScreen() {
                     p == ABOUT -> AboutPage()
                     p.startsWith(MODULE_PREFIX) -> ModuleSettingsPage(p.removePrefix(MODULE_PREFIX))
                 }
+            }
             }
         }
     }
@@ -331,45 +333,52 @@ private fun AboutPage() {
 
 // ---------- Элементы ----------
 
+/** Подпись раздела — как над списками в модулях. */
 @Composable
-private fun Header(text: String) {
-    Text(text, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 6.dp))
-}
+private fun Header(text: String) = CaptionHeader(text)
 
 @Composable
 private fun Note(text: String) {
-    Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+    Text(text, style = MaterialTheme.typography.bodySmall, color = LocalPalette.current.contentSecondary,
         modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
 }
 
+/** Разделы отделены воздухом, без линий. */
 @Composable
-private fun Divider() = HorizontalDivider(Modifier.padding(top = 10.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+private fun Divider() = Spacer(Modifier.height(6.dp))
 
+/** Пункт настроек — отдельный блок: значок в цветной подложке, название, подпись, стрелка. */
 @Composable
 private fun NavRow(icon: ImageVector, title: String, subtitle: String?, tint: Color? = null, onClick: () -> Unit) {
+    val pal = LocalPalette.current
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 12.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 3.dp).block(RoundedCornerShape(20.dp))
+            .bouncyClick(onClick).padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, null, tint = tint ?: MaterialTheme.colorScheme.onSurface)
-        Column(Modifier.weight(1f).padding(horizontal = 16.dp)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
-            if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Box(Modifier.size(40.dp).clip(RoundedCornerShape(13.dp))
+            .background(tint?.copy(alpha = 0.18f) ?: pal.accentContainer), contentAlignment = Alignment.Center) {
+            Icon(icon, null, Modifier.size(22.dp), tint = tint ?: pal.accent)
         }
-        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
+            Text(title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = pal.content)
+            if (subtitle != null) Text(subtitle, fontSize = 13.sp, color = pal.contentSecondary)
+        }
+        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = pal.contentSecondary)
     }
 }
 
 @Composable
 private fun SwitchRow(title: String, subtitle: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    val pal = LocalPalette.current
     Row(
-        Modifier.fillMaxWidth().clickable { onChange(!checked) }.padding(horizontal = 20.dp, vertical = 10.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 3.dp).block(RoundedCornerShape(20.dp))
+            .bouncyClick { onChange(!checked) }.padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = pal.content)
+            Text(subtitle, fontSize = 13.sp, color = pal.contentSecondary)
         }
         Spacer(Modifier.width(12.dp))
         Switch(checked, onChange)

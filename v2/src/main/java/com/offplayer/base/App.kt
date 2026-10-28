@@ -125,7 +125,7 @@ fun OffApp(inSystemPip: Boolean) {
             if (Playback.returning != null && Prefs.shell.value != ShellStyle.CARDS) Playback.returning = null
         }
         Box(Modifier.fillMaxSize()) {
-            LivingBackground()
+            Box(Modifier.fillMaxSize().background(LocalPalette.current.base))
             if (!Prefs.firstRunDone.value) {
                 FirstRunWizard()
             } else {
@@ -163,21 +163,23 @@ private fun ServiceOverlay() {
     ) {
         val spec = Catalog.byId(lastId) ?: return@AnimatedVisibility
         BackHandler { Nav.service = null }
-        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        val pal = LocalPalette.current
+        Surface(Modifier.fillMaxSize(), color = pal.base) {
+            HeaderGradient(360.dp)
             Column(Modifier.fillMaxSize().systemBarsPadding()) {
-                if (spec.id != "settings") {
-                    TopAppBar(
-                        title = { Text(spec.title) },
-                        navigationIcon = {
-                            IconButton(onClick = { Nav.service = null }) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Назад") }
-                        },
-                        colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
-                        windowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
-                    )
-                }
+                if (spec.id != "settings") ServiceHeader(spec.title) { Nav.service = null }
                 ModuleHost(spec, ModuleEnv(showTitle = false), Modifier.weight(1f))
             }
         }
+    }
+}
+
+/** Шапка служебного экрана на градиенте: стеклянная кнопка «Назад» и крупный заголовок. */
+@Composable
+fun ServiceHeader(title: String, onBack: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(start = 12.dp, end = 16.dp, top = 8.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        GlassIconButton(Icons.AutoMirrored.Rounded.ArrowBack, "Назад", onClick = onBack)
+        ScreenTitle(title, Modifier.padding(start = 14.dp))
     }
 }
 
