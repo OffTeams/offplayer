@@ -58,6 +58,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -93,12 +94,19 @@ fun SettingsScreen() {
             targetState = page,
             transitionSpec = {
                 val forward = targetState.length >= initialState.length && targetState != ROOT
-                (slideInHorizontally(tunedSpring()) { if (forward) it else -it / 3 }) togetherWith
-                    (slideOutHorizontally(tunedSpring()) { if (forward) -it / 3 else it })
+                ((slideInHorizontally(tunedSpring()) { if (forward) it else -it / 3 }) togetherWith
+                    (slideOutHorizontally(tunedSpring()) { if (forward) -it / 3 else it }))
+                    // Новая страница вперёд ложится сверху, при возврате — уходящая остаётся сверху
+                    .apply { targetContentZIndex = if (forward) 1f else -1f }
             },
+            modifier = Modifier.clipToBounds(),
             label = "settingsPage",
         ) { p ->
-            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
+            // Непрозрачный фон: во время перехода старая страница не просвечивает сквозь новую
+            Column(
+                Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+                    .verticalScroll(rememberScrollState()).padding(bottom = 24.dp),
+            ) {
                 when {
                     p == ROOT -> RootPage(open)
                     p == APPEARANCE -> AppearancePage()

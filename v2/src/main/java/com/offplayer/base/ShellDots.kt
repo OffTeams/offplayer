@@ -89,9 +89,10 @@ fun DotRailShell() {
         listOf(Catalog.downloads, Catalog.settings).map { RailItem(it.id, it.title, it.icon, true) }
 
     Box(Modifier.fillMaxSize().systemBarsPadding()) {
+        // Сбоку точки маленькие и лежат поверх края контента — модуль не теряет ширину.
+        // Внизу лента оставляет узкую полосу, иначе закроет мини-плеер и нижние кнопки.
         val pad = when (side) {
-            RailSide.LEFT -> PaddingValues(start = 26.dp)
-            RailSide.RIGHT -> PaddingValues(end = 26.dp)
+            RailSide.LEFT, RailSide.RIGHT -> PaddingValues(0.dp)
             RailSide.BOTTOM -> PaddingValues(bottom = 26.dp)
         }
         Box(Modifier.fillMaxSize().padding(pad)) {
