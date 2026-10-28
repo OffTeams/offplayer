@@ -13,6 +13,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -27,6 +29,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -210,7 +214,7 @@ private fun MusicPlayer(track: FakeTrack, queueOpen: Boolean, onToggleQueue: () 
         val i = FAKE_TRACKS.indexOfFirst { it.id == track.id }
         (1..5).map { FAKE_TRACKS[(i + it) % FAKE_TRACKS.size] }
     }
-    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+    val header = @Composable {
         Row(
             Modifier.fillMaxWidth().padding(top = 8.dp, start = env.reserveTopStart, end = env.reserveTopEnd),
             verticalAlignment = Alignment.CenterVertically,
@@ -218,12 +222,43 @@ private fun MusicPlayer(track: FakeTrack, queueOpen: Boolean, onToggleQueue: () 
             IconButton(onClick = onCollapse) { Icon(Icons.Rounded.KeyboardArrowDown, "Свернуть") }
             Text("Сейчас играет", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
         }
-        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-            Box(Modifier.fillMaxWidth(0.82f).aspectRatio(1f), contentAlignment = Alignment.Center) {
+    }
+    val cover = @Composable { m: Modifier ->
+        // Обложка вписывается и по ширине, и по высоте — в альбомной не вылезает за экран
+        Box(m, contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxWidth(0.82f).aspectRatio(1f, matchHeightConstraintsFirst = true), contentAlignment = Alignment.Center) {
                 Box(Modifier.matchParentSize().clip(RoundedCornerShape(24.dp)).background(lerp(track.color, Color.Black, 0.25f)))
                 VinylLogo(160.dp, rotating = Playback.playing)
             }
         }
+    }
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        if (maxWidth > maxHeight) {
+            // Альбомная: обложка слева, сведения, кнопки и очередь — справа с прокруткой
+            Row(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
+                cover(Modifier.weight(1f).fillMaxHeight().padding(vertical = 12.dp))
+                Column(
+                    Modifier.weight(1.2f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(start = 16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    header()
+                    PlayerInfo(track, queueOpen, onToggleQueue, queueFactor, upNext)
+                }
+            }
+        } else {
+            Column(Modifier.fillMaxSize().padding(horizontal = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                header()
+                cover(Modifier.weight(1f).fillMaxWidth())
+                PlayerInfo(track, queueOpen, onToggleQueue, queueFactor, upNext)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlayerInfo(track: FakeTrack, queueOpen: Boolean, onToggleQueue: () -> Unit, queueFactor: Float, upNext: List<FakeTrack>) {
+    val env = LocalModuleEnv.current
+    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(track.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
         Text(track.artist, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(12.dp))
@@ -312,29 +347,60 @@ fun VideoSurface(video: FakeVideo, modifier: Modifier = Modifier, showTime: Bool
 fun VideoModule() {
     val env = LocalModuleEnv.current
     val video = Playback.video
-    Column(Modifier.fillMaxSize()) {
-        if (env.showTitle) ModuleTitle("Видео")
-        if (video != null) {
-            VideoSurface(video, Modifier.fillMaxWidth().padding(horizontal = 12.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(14.dp)))
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(onClick = { Playback.videoPlaying = !Playback.videoPlaying }) {
-                    Icon(if (Playback.videoPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, "Пауза")
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        // Альбомная ориентация (и широкие экраны): видео с кнопками слева, список справа
+        if (maxWidth > maxHeight) {
+            Column(Modifier.fillMaxSize()) {
+                if (env.showTitle) ModuleTitle("Видео")
+                Row(Modifier.weight(1f).fillMaxWidth()) {
+                    if (video != null) {
+                        Column(Modifier.weight(1.4f).fillMaxHeight()) { VideoPlayerBlock(video, Modifier.weight(1f, fill = false)) }
+                    }
+                    VideoList(video, Modifier.weight(1f).fillMaxHeight())
                 }
-                Text(video.title, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                IconButton(onClick = { Playback.audioOnly = !Playback.audioOnly }) {
-                    Icon(if (Playback.audioOnly) Icons.Rounded.Videocam else Icons.Rounded.Headphones,
-                        if (Playback.audioOnly) "Вернуть картинку" else "Только звук")
-                }
-                IconButton(onClick = { Playback.pipRequest = "video" }) {
-                    Icon(Icons.Rounded.PictureInPictureAlt, "Картинка в картинке")
-                }
-                IconButton(onClick = { Playback.fullscreen = true }) { Icon(Icons.Rounded.Fullscreen, "Во весь экран") }
+            }
+        } else {
+            Column(Modifier.fillMaxSize()) {
+                if (env.showTitle) ModuleTitle("Видео")
+                if (video != null) VideoPlayerBlock(video, Modifier)
+                VideoList(video, Modifier.weight(1f))
             }
         }
-        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(bottom = env.listBottom)) {
+    }
+}
+
+/** Видео и кнопки под ним; картинка вписывается и по ширине, и по высоте. */
+@Composable
+private fun VideoPlayerBlock(video: FakeVideo, surfaceModifier: Modifier) {
+    VideoSurface(
+        video,
+        surfaceModifier.fillMaxWidth().padding(horizontal = 12.dp)
+            .aspectRatio(16f / 9f, matchHeightConstraintsFirst = true).clip(RoundedCornerShape(14.dp)),
+    )
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = { Playback.videoPlaying = !Playback.videoPlaying }) {
+            Icon(if (Playback.videoPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, "Пауза")
+        }
+        Text(video.title, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        IconButton(onClick = { Playback.audioOnly = !Playback.audioOnly }) {
+            Icon(if (Playback.audioOnly) Icons.Rounded.Videocam else Icons.Rounded.Headphones,
+                if (Playback.audioOnly) "Вернуть картинку" else "Только звук")
+        }
+        IconButton(onClick = { Playback.pipRequest = "video" }) {
+            Icon(Icons.Rounded.PictureInPictureAlt, "Картинка в картинке")
+        }
+        IconButton(onClick = { Playback.fullscreen = true }) { Icon(Icons.Rounded.Fullscreen, "Во весь экран") }
+    }
+}
+
+@Composable
+private fun VideoList(video: FakeVideo?, modifier: Modifier) {
+    val env = LocalModuleEnv.current
+    run {
+        LazyColumn(modifier, contentPadding = PaddingValues(bottom = env.listBottom)) {
             items(FAKE_VIDEOS, key = { it.id }) { v ->
                 Row(
                     Modifier.fillMaxWidth().clickable { Playback.playVideo(v) }.padding(horizontal = 12.dp, vertical = 6.dp),
