@@ -5,7 +5,9 @@ import android.content.Context
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
-import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.launch
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
@@ -51,7 +53,7 @@ val Coral = Color(0xFFFF7A59)
 
 /**
  * Палитра основы в духе плеера 1.x: чёрная (или белая) база, белый (чёрный) текст,
- * акцент и три цветных пятна живого фона.
+ * акцент и пятна живого фона — все из одного семейства оттенков, без серых и бурых тонов.
  */
 data class OffPalette(
     val dark: Boolean,
@@ -60,33 +62,21 @@ data class OffPalette(
     val contentSecondary: Color,
     val accent: Color,
     val blobTop: Color,
-    val blobAccent: Color,
+    val blobMid: Color,
     val blobBottom: Color,
+    val blobAccent: Color,
     /** Живой фон с плывущими пятнами (нет в классическом режиме). */
     val living: Boolean,
 )
 
 val LocalPalette = staticCompositionLocalOf {
-    OffPalette(true, Color.Black, Color.White, Color.White.copy(alpha = 0.7f), Coral, Color.Black, Coral, Color.Black, true)
+    OffPalette(true, Color.Black, Color.White, Color.White.copy(alpha = 0.7f), Coral, Color.Black, Color.Black, Color.Black, Coral, true)
 }
 
 private fun hsl(h: Float, s: Float, l: Float) =
-    Color(ColorUtils.HSLToColor(floatArrayOf((h + 360f) % 360f, s.coerceIn(0f, 1f), l.coerceIn(0f, 1f))))
+    Color(ColorUtils.HSLToColor(floatArrayOf(((h % 360f) + 360f) % 360f, s.coerceIn(0f, 1f), l.coerceIn(0f, 1f))))
 
 private fun Color.hslParts(): FloatArray = FloatArray(3).also { ColorUtils.colorToHSL(toArgb(), it) }
-
-/** Цвета, как у обложки в 1.x: яркий, тёмный и приглушённый — из одного цвета-основы. */
-private data class SeedColors(val accent: Color, val dark: Color, val muted: Color)
-
-private fun seedColors(seed: Color): SeedColors {
-    val (h, s, _) = seed.hslParts().let { Triple(it[0], it[1], it[2]) }
-    val sat = s.coerceIn(0.4f, 0.9f)
-    return SeedColors(
-        accent = hsl(h, sat, 0.6f),
-        dark = hsl(h, sat * 0.85f, 0.24f),
-        muted = hsl(h + 24f, sat * 0.45f, 0.42f),
-    )
-}
 
 private fun Color.readableOnDark(): Color = when {
     luminance() < 0.18f -> lerp(this, Color.White, 0.45f)
@@ -100,27 +90,36 @@ private fun Color.readableOnLight(): Color = when {
     else -> this
 }
 
-private fun livingPalette(c: SeedColors, dark: Boolean): OffPalette = if (dark) OffPalette(
-    dark = true,
-    base = Color.Black,
-    content = Color.White,
-    contentSecondary = Color.White.copy(alpha = 0.7f),
-    accent = c.accent.readableOnDark(),
-    blobTop = lerp(c.dark, Color.Black, 0.35f),
-    blobAccent = c.accent.copy(alpha = 0.38f),
-    blobBottom = lerp(c.muted, Color.Black, 0.45f),
-    living = true,
-) else OffPalette(
-    dark = false,
-    base = Color.White,
-    content = Color(0xFF111111),
-    contentSecondary = Color(0xFF111111).copy(alpha = 0.62f),
-    accent = c.accent.readableOnLight(),
-    blobTop = lerp(c.accent, Color.White, 0.45f),
-    blobAccent = lerp(c.dark, Color.White, 0.55f).copy(alpha = 0.55f),
-    blobBottom = lerp(c.muted, Color.White, 0.70f),
-    living = true,
-)
+/**
+ * Пятна — один оттенок (h) и два соседних (±20°), разной светлоты: смесь остаётся чистой.
+ * Насыщенность ограничена снизу, чтобы фон не уходил в серый.
+ */
+private fun livingPalette(h: Float, s: Float, dark: Boolean): OffPalette {
+    val sat = s.coerceIn(0.45f, 0.9f)
+    return if (dark) OffPalette(
+        dark = true,
+        base = Color.Black,
+        content = Color.White,
+        contentSecondary = Color.White.copy(alpha = 0.7f),
+        accent = hsl(h, sat, 0.62f).readableOnDark(),
+        blobTop = hsl(h, sat * 0.85f, 0.26f),
+        blobMid = hsl(h + 20f, sat * 0.8f, 0.22f),
+        blobBottom = hsl(h - 20f, sat * 0.85f, 0.2f),
+        blobAccent = hsl(h, sat, 0.5f).copy(alpha = 0.32f),
+        living = true,
+    ) else OffPalette(
+        dark = false,
+        base = Color.White,
+        content = Color(0xFF111111),
+        contentSecondary = Color(0xFF111111).copy(alpha = 0.62f),
+        accent = hsl(h, sat, 0.55f).readableOnLight(),
+        blobTop = hsl(h, sat * 0.9f, 0.82f),
+        blobMid = hsl(h + 20f, sat * 0.8f, 0.86f),
+        blobBottom = hsl(h - 20f, sat * 0.85f, 0.84f),
+        blobAccent = hsl(h, sat, 0.72f).copy(alpha = 0.45f),
+        living = true,
+    )
+}
 
 /** Классический режим: статичный фон пресета и коралловый акцент, без пятен. */
 private fun classicPalette(p: ClassicPreset): OffPalette {
@@ -129,7 +128,7 @@ private fun classicPalette(p: ClassicPreset): OffPalette {
     return OffPalette(
         dark = p.dark, base = bg, content = fg, contentSecondary = fg.copy(alpha = if (p.dark) 0.7f else 0.62f),
         accent = if (p.dark) Coral else Color(0xFFC8462A),
-        blobTop = bg, blobAccent = bg, blobBottom = bg, living = false,
+        blobTop = bg, blobMid = bg, blobBottom = bg, blobAccent = bg, living = false,
     )
 }
 
@@ -197,6 +196,27 @@ private fun rememberWallpaperSeed(): Color? {
     return seed
 }
 
+/**
+ * Смена цвета идёт по кругу оттенков кратчайшим путём (зелёный → жёлтый → коралл),
+ * а не прямым смешиванием RGB, которое проходит через бурый и серый.
+ */
+@Composable
+private fun animateSeed(target: Color, durationMs: Int): Pair<Float, Float> {
+    val parts = target.hslParts()
+    val hue = remember { Animatable(parts[0]) }
+    val sat = remember { Animatable(parts[1]) }
+    LaunchedEffect(parts[0], parts[1]) {
+        val cur = ((hue.value % 360f) + 360f) % 360f
+        var d = parts[0] - cur
+        if (d > 180f) d -= 360f
+        if (d < -180f) d += 360f
+        hue.snapTo(cur)
+        launch { hue.animateTo(cur + d, tween(durationMs)) }
+        sat.animateTo(parts[1], tween(durationMs))
+    }
+    return hue.value to sat.value
+}
+
 @Composable
 fun OffTheme(content: @Composable () -> Unit) {
     val systemDark = isSystemInDarkTheme()
@@ -205,14 +225,10 @@ fun OffTheme(content: @Composable () -> Unit) {
 
     // Пока играет трек, цвета основы берутся из его обложки; иначе — из обоев
     val playingTint = Playback.track?.color?.takeIf { mode == ColorMode.WALLPAPER && Playback.playing }
-    val target = seedColors(playingTint ?: wallpaperSeed ?: Coral)
-    val spec = tween<Color>(if (Prefs.lightMode.value) 200 else 550)
-    val accent by animateColorAsState(target.accent, spec, label = "accent")
-    val darkC by animateColorAsState(target.dark, spec, label = "dark")
-    val muted by animateColorAsState(target.muted, spec, label = "muted")
+    val (hue, sat) = animateSeed(playingTint ?: wallpaperSeed ?: Coral, if (Prefs.lightMode.value) 200 else 700)
 
     val palette = when (mode) {
-        ColorMode.WALLPAPER -> livingPalette(SeedColors(accent, darkC, muted), systemDark)
+        ColorMode.WALLPAPER -> livingPalette(hue, sat, systemDark)
         ColorMode.CLASSIC -> classicPalette(Prefs.preset.value)
     }
     val scheme = schemeOf(palette)
@@ -244,20 +260,28 @@ fun LivingBackground(modifier: Modifier = Modifier, still: Boolean = false) {
         Canvas(Modifier.fillMaxSize()) {
             val w = size.width
             val h = size.height
+            // Размер пятен — от длинной стороны, чтобы цвет покрывал весь экран, а не только верх
+            val r = maxOf(w, h)
             fun blob(color: Color, cx: Float, cy: Float, radius: Float) = drawCircle(
-                brush = Brush.radialGradient(listOf(color, Color.Transparent), center = Offset(cx, cy), radius = radius),
+                brush = Brush.radialGradient(listOf(color, color.copy(alpha = color.alpha * 0.5f), Color.Transparent),
+                    center = Offset(cx, cy), radius = radius),
                 radius = radius, center = Offset(cx, cy),
             )
-            blob(pal.blobTop.copy(alpha = 0.95f), w * (0.25f + 0.15f * cos(phase)), h * (0.22f + 0.08f * sin(phase)), w * 1.0f)
-            blob(pal.blobAccent.copy(alpha = pal.blobAccent.alpha * energy), w * (0.8f + 0.18f * sin(phase * 2)), h * (0.45f + 0.1f * cos(phase)), w * 0.75f)
-            blob(pal.blobBottom.copy(alpha = 0.85f), w * (0.35f + 0.2f * cos(phase + 2f)), h * (0.88f + 0.05f * sin(phase * 2)), w * 1.1f)
+            // Пятна разнесены сверху донизу и медленно плывут каждое по своей траектории
+            blob(pal.blobTop, w * (0.2f + 0.15f * cos(phase)), h * (0.1f + 0.05f * sin(phase)), r * 0.55f)
+            blob(pal.blobMid, w * (0.88f + 0.1f * sin(phase * 2)), h * (0.38f + 0.07f * cos(phase)), r * 0.45f)
+            blob(pal.blobBottom, w * (0.12f + 0.14f * cos(phase + 2f)), h * (0.68f + 0.06f * sin(phase + 1f)), r * 0.45f)
+            blob(pal.blobTop, w * (0.8f + 0.12f * cos(phase + 1f)), h * (0.96f + 0.04f * sin(phase * 2)), r * 0.5f)
+            blob(pal.blobAccent.copy(alpha = pal.blobAccent.alpha * energy),
+                w * (0.5f + 0.25f * sin(phase + 0.5f)), h * (0.52f + 0.12f * cos(phase * 2)), r * 0.35f)
         }
+        // Лёгкое ровное приглушение для читаемости текста — без выбеливания (затемнения) низа
         Box(
             Modifier.fillMaxSize().background(
                 Brush.verticalGradient(
-                    0f to pal.base.copy(alpha = 0.20f),
-                    0.55f to pal.base.copy(alpha = 0.12f),
-                    1f to pal.base.copy(alpha = 0.82f),
+                    0f to pal.base.copy(alpha = 0.10f),
+                    0.5f to pal.base.copy(alpha = 0.06f),
+                    1f to pal.base.copy(alpha = 0.18f),
                 )
             )
         )
