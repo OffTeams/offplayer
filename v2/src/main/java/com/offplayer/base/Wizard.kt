@@ -128,7 +128,7 @@ private fun WelcomeStep() {
         )
         Spacer(Modifier.height(8.dp))
         Text("Макет 2.0.0.2.1R — модули-пустышки для проверки дизайна", style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.primary)
+            color = MaterialTheme.colorScheme.primary, textAlign = TextAlign.Center)
     }
 }
 
@@ -185,7 +185,7 @@ private fun StylePreview(s: ShellStyle) {
 @Composable
 private fun ColorStep() {
     StepTitle("Цвета", "По умолчанию OFFPlayer берёт цвета из обоев, а во время музыки подстраивается под трек.")
-    Chips(ColorMode.entries, Prefs.colorMode.value, { it.title }) { Prefs.colorMode.value = it }
+    Chips(ColorMode.entries, Prefs.colorMode.value, { it.title }, inset = 0.dp) { Prefs.colorMode.value = it }
     Spacer(Modifier.height(8.dp))
     Text(Prefs.colorMode.value.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     if (Prefs.colorMode.value == ColorMode.CLASSIC) {

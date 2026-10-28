@@ -80,11 +80,15 @@ import kotlin.math.sin
 
 @Composable
 fun ModuleTitle(text: String) {
+    val env = LocalModuleEnv.current
+    // Если в верхнем углу карточки кнопки основы — заголовок просто уступает им место в своей строке
     Text(
         text,
         style = MaterialTheme.typography.headlineSmall,
         fontWeight = FontWeight.SemiBold,
-        modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 8.dp),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.padding(start = 20.dp + env.reserveTopStart, end = 20.dp + env.reserveTopEnd, top = 16.dp, bottom = 8.dp),
     )
 }
 
@@ -153,7 +157,7 @@ fun MusicModule() {
 
     Column(Modifier.fillMaxSize()) {
         if (env.showTitle) ModuleTitle("Музыка")
-        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(bottom = 8.dp)) {
+        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(bottom = if (track != null) 8.dp else env.listBottom)) {
             items(FAKE_TRACKS, key = { it.id }) { t ->
                 val current = track?.id == t.id
                 Row(
@@ -176,8 +180,11 @@ fun MusicModule() {
 
 @Composable
 private fun MiniPlayer(track: FakeTrack, onOpen: () -> Unit) {
+    val env = LocalModuleEnv.current
     Row(
-        Modifier.fillMaxWidth().padding(8.dp).clip(RoundedCornerShape(16.dp))
+        Modifier.fillMaxWidth()
+            .padding(start = 8.dp + env.reserveBottomStart, end = 8.dp + env.reserveBottomEnd, top = 8.dp, bottom = 8.dp)
+            .clip(RoundedCornerShape(16.dp))
             .background(MaterialTheme.colorScheme.primaryContainer).clickable(onClick = onOpen).padding(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -204,7 +211,10 @@ private fun MusicPlayer(track: FakeTrack, queueOpen: Boolean, onToggleQueue: () 
         (1..5).map { FAKE_TRACKS[(i + it) % FAKE_TRACKS.size] }
     }
     Column(Modifier.fillMaxSize().padding(horizontal = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            Modifier.fillMaxWidth().padding(top = 8.dp, start = env.reserveTopStart, end = env.reserveTopEnd),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             IconButton(onClick = onCollapse) { Icon(Icons.Rounded.KeyboardArrowDown, "Свернуть") }
             Text("Сейчас играет", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
         }
@@ -251,7 +261,7 @@ private fun MusicPlayer(track: FakeTrack, queueOpen: Boolean, onToggleQueue: () 
                 }
             }
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(if (env.reserveBottomStart + env.reserveBottomEnd > 0.dp) 52.dp else 8.dp))
     }
 }
 
@@ -324,7 +334,7 @@ fun VideoModule() {
                 IconButton(onClick = { Playback.fullscreen = true }) { Icon(Icons.Rounded.Fullscreen, "Во весь экран") }
             }
         }
-        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(bottom = 12.dp)) {
+        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(bottom = env.listBottom)) {
             items(FAKE_VIDEOS, key = { it.id }) { v ->
                 Row(
                     Modifier.fillMaxWidth().clickable { Playback.playVideo(v) }.padding(horizontal = 12.dp, vertical = 6.dp),
@@ -365,7 +375,7 @@ fun PlaceholderModule(id: String) {
                 }
             }
         }
-        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(vertical = 8.dp)) {
+        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(top = 8.dp, bottom = env.listBottom)) {
             items(20) { i ->
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(40.dp).clip(CircleShape).background(spec.color.copy(alpha = 0.25f)), contentAlignment = Alignment.Center) {

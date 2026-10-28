@@ -369,8 +369,8 @@ private fun SwitchRow(title: String, subtitle: String, checked: Boolean, onChang
 }
 
 @Composable
-fun <T> Chips(options: List<T>, selected: T, label: (T) -> String, onSelect: (T) -> Unit) {
-    LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+fun <T> Chips(options: List<T>, selected: T, label: (T) -> String, inset: androidx.compose.ui.unit.Dp = 16.dp, onSelect: (T) -> Unit) {
+    LazyRow(contentPadding = PaddingValues(horizontal = inset), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         items(options) { o -> FilterChip(selected = o == selected, onClick = { onSelect(o) }, label = { Text(label(o)) }) }
     }
 }

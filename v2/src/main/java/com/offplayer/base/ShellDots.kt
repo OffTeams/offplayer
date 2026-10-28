@@ -318,7 +318,9 @@ private fun DotRail(items: List<RailItem>, selectedId: String?, side: RailSide, 
                     else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
                 }
                 Box(
-                    Modifier.offset(shifted.x - size / 2, shifted.y - size / 2).size(size)
+                    Modifier.offset(shifted.x - size / 2, shifted.y - size / 2)
+                        .wrapContentSize(Alignment.TopStart, unbounded = true)
+                        .size(size)
                         .background(color, CircleShape)
                         .then(
                             if (item.service && f == 0f && !isSelected)
@@ -333,7 +335,12 @@ private fun DotRail(items: List<RailItem>, selectedId: String?, side: RailSide, 
                     }
                 }
                 if (f > 0.05f && labels) {
-                    Box(Modifier.offset(shifted.x - 60.dp, shifted.y + ICON / 2 + 2.dp).size(120.dp, LABEL_H)) {
+                    // Подпись шире полосы ленты — снимаем ограничение размера родителя
+                    Box(
+                        Modifier.offset(shifted.x - 60.dp, shifted.y + ICON / 2 + 2.dp)
+                            .wrapContentSize(Alignment.TopStart, unbounded = true)
+                            .size(120.dp, LABEL_H + 4.dp),
+                    ) {
                         Text(
                             item.title,
                             style = MaterialTheme.typography.labelMedium,

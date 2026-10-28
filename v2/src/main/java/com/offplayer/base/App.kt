@@ -194,7 +194,7 @@ private fun InAppPipWindow() {
         val scope = androidx.compose.runtime.rememberCoroutineScope()
         val ox = remember { Animatable(0f) }
         val oy = remember { Animatable(0f) }
-        BoxWithConstraints(Modifier.fillMaxSize().statusBarsPadding().padding(12.dp)) {
+        BoxWithConstraints(Modifier.fillMaxSize().statusBarsPadding().padding(12.dp).padding(top = pipTopInset())) {
             val pipW = PIP_WIDTH
             Box(
                 Modifier.align(Alignment.TopEnd)
@@ -234,6 +234,11 @@ private fun InAppPipWindow() {
 }
 
 val PIP_WIDTH = 220.dp
+
+/** В карточной ленте с кнопками сверху окошко опускается под них, чтобы не закрывать. */
+fun pipTopInset(): androidx.compose.ui.unit.Dp =
+    if (Prefs.shell.value == ShellStyle.CARDS &&
+        (Prefs.cardCorner.value == Corner.TOP_START || Prefs.cardCorner.value == Corner.TOP_END)) 52.dp else 0.dp
 
 @Composable
 private fun FullscreenVideo() {

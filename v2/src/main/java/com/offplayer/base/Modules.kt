@@ -55,7 +55,21 @@ data class ModuleEnv(
     val stackProgress: Float = 0f,
     /** Показывать ли модулю свой заголовок (в классической панели заголовок — в шапке основы). */
     val showTitle: Boolean = true,
-)
+    /**
+     * Угол карточки, где основа рисует свои кнопки (Загрузка, Настройки), и их ширина.
+     * Модуль оставляет место только в строке заголовка или в нижней строке — карточка не теряет площадь.
+     */
+    val reservedCorner: Corner? = null,
+    val reservedWidth: androidx.compose.ui.unit.Dp = androidx.compose.ui.unit.Dp(0f),
+) {
+    val reserveTopStart get() = if (reservedCorner == Corner.TOP_START) reservedWidth else androidx.compose.ui.unit.Dp(0f)
+    val reserveTopEnd get() = if (reservedCorner == Corner.TOP_END) reservedWidth else androidx.compose.ui.unit.Dp(0f)
+    val reserveBottomStart get() = if (reservedCorner == Corner.BOTTOM_START) reservedWidth else androidx.compose.ui.unit.Dp(0f)
+    val reserveBottomEnd get() = if (reservedCorner == Corner.BOTTOM_END) reservedWidth else androidx.compose.ui.unit.Dp(0f)
+    /** Нижний отступ списков, чтобы последние строки можно было прокрутить из-под кнопок. */
+    val listBottom get() = if (reservedCorner == Corner.BOTTOM_START || reservedCorner == Corner.BOTTOM_END)
+        androidx.compose.ui.unit.Dp(56f) else androidx.compose.ui.unit.Dp(8f)
+}
 
 val LocalModuleEnv = compositionLocalOf { ModuleEnv() }
 

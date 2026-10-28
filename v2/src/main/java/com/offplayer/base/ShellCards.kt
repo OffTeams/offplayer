@@ -39,6 +39,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
@@ -113,9 +114,13 @@ fun CardStackShell() {
         val boxW = maxWidth
         val boxH = maxHeight
         val wPx = with(density) { boxW.toPx() }
-        val top = if (corner == Corner.TOP_START || corner == Corner.TOP_END) 64.dp else 24.dp
-        val bottom = if (corner == Corner.BOTTOM_START || corner == Corner.BOTTOM_END) 76.dp else 40.dp
-        val side = 20.dp
+        // Карточка занимает всю доступную площадь; снизу — только место, чтобы были видны задние карты
+        val top = 12.dp
+        val bottom = 30.dp
+        val side = 16.dp
+        // Кнопки основы живут в углу самой карточки, модуль уступает им место в строке заголовка
+        val buttonCount = Catalog.headerModules().size + 2
+        val reserveW = CORNER_BUTTON * buttonCount + 6.dp * (buttonCount - 1) + 8.dp
         val cardW = maxWidth - side * 2
         val cardH = maxHeight - top - bottom
         // Скругление как у игральной карты — доля ширины, чтобы пропорции не зависели от размера
@@ -158,11 +163,14 @@ fun CardStackShell() {
             val r = Playback.returning ?: return@LaunchedEffect
             val rest = stackNow.filter { it != r }
             setOrder(if (Prefs.pipReturnToEnd.value) rest + r else listOf(r) + rest)
-            Playback.returning = null
             val a = Animatable(wPx * 1.2f)
             entry[r] = a
-            a.animateTo(0f, tunedSpring())
-            entry.remove(r)
+            // Анимация — в своей корутине: сброс returning перезапускает этот эффект и отменил бы её
+            scope.launch {
+                a.animateTo(0f, tunedSpring())
+                entry.remove(r)
+            }
+            Playback.returning = null
         }
 
         // Внутренняя «картинка в картинке»: карточка уменьшается и улетает вверх к месту окошка
@@ -172,9 +180,9 @@ fun CardStackShell() {
                 pipAnim.snapTo(0f)
                 pipAnim.animateTo(1f, tween(420, easing = FastOutSlowInEasing))
             }
-            Playback.pipRequest = null
             Playback.enterPip(id)
             pipAnim.snapTo(0f)
+            Playback.pipRequest = null
         }
 
         // Подсветка полей: дышит цветом играющего трека
@@ -256,7 +264,7 @@ fun CardStackShell() {
                     val pipScale = PIP_WIDTH / cardW
                     // Центр окошка «картинки в картинке» относительно центра карточки
                     val pipTx = with(density) { ((boxW - 12.dp - PIP_WIDTH / 2) - (side + cardW / 2)).toPx() }
-                    val pipTy = with(density) { ((12.dp + PIP_WIDTH * 9f / 32f) - (top + cardH / 2)).toPx() }
+                    val pipTy = with(density) { ((12.dp + pipTopInset() + PIP_WIDTH * 9f / 32f) - (top + cardH / 2)).toPx() }
                     val entryX = entry[id]?.value ?: 0f
                     val live = front || (id == activeId && !light)
 
@@ -332,19 +340,22 @@ fun CardStackShell() {
                                     ModuleHost(
                                         spec,
                                         ModuleEnv(live = true, front = front, inCard = true,
-                                            stackProgress = if (front) progress else 1f),
+                                            stackProgress = if (front) progress else 1f,
+                                            reservedCorner = corner, reservedWidth = reserveW),
                                         Modifier.fillMaxSize(),
                                     )
                                 }
                             } else {
-                                CardSnapshot(spec)
+                                CompositionLocalProvider(LocalModuleEnv provides ModuleEnv(reservedCorner = corner, reservedWidth = reserveW)) {
+                                    CardSnapshot(spec)
+                                }
                             }
                         }
                     }
                 }
             }
 
-            CornerButtons(corner)
+            Box(Modifier.offset(side, top).size(cardW, cardH).padding(8.dp)) { CornerButtons(corner) }
 
             menuAt?.let { at ->
                 Box(Modifier.offset(at.x, at.y)) {
@@ -362,7 +373,9 @@ fun CardStackShell() {
     }
 }
 
-/** Загрузка, Настройки и модули шапки — в выбранном углу экрана. */
+private val CORNER_BUTTON = 40.dp
+
+/** Загрузка, Настройки и модули шапки — в выбранном углу передней карточки. */
 @Composable
 private fun CornerButtons(corner: Corner) {
     val align = when (corner) {
@@ -371,10 +384,12 @@ private fun CornerButtons(corner: Corner) {
         Corner.BOTTOM_START -> Alignment.BottomStart
         Corner.BOTTOM_END -> Alignment.BottomEnd
     }
-    Box(Modifier.fillMaxSize().padding(12.dp)) {
-        Row(Modifier.align(align), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Box(Modifier.fillMaxSize()) {
+        Row(Modifier.align(align), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             (Catalog.headerModules() + Catalog.downloads + Catalog.settings).forEach { m ->
-                FilledTonalIconButton(onClick = { Nav.select(m.id) }) { Icon(m.icon, m.title) }
+                FilledTonalIconButton(onClick = { Nav.select(m.id) }, modifier = Modifier.size(CORNER_BUTTON)) {
+                    Icon(m.icon, m.title, Modifier.size(20.dp))
+                }
             }
         }
     }
@@ -383,8 +398,9 @@ private fun CornerButtons(corner: Corner) {
 /** Снимок спящего модуля: шапка и заглушки строк вместо живого содержимого. */
 @Composable
 private fun CardSnapshot(spec: ModuleSpec) {
+    val env = LocalModuleEnv.current
     Column(Modifier.fillMaxSize().padding(20.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = env.reserveTopStart)) {
             Box(Modifier.size(36.dp).clip(CircleShape).background(spec.color.copy(alpha = 0.25f)), contentAlignment = Alignment.Center) {
                 Icon(spec.icon, null, tint = spec.color)
             }
