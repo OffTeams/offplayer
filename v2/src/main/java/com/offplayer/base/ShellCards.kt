@@ -12,6 +12,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -109,6 +110,8 @@ fun CardStackShell() {
 
     val corner = Prefs.cardCorner.value
     val light = Prefs.lightMode.value
+    val pal = LocalPalette.current
+    val glassCards = pal.living && !light
 
     BoxWithConstraints(Modifier.fillMaxSize().systemBarsPadding()) {
         val boxW = maxWidth
@@ -333,8 +336,12 @@ fun CardStackShell() {
                                     clip = true
                                     shadowElevation = if (light) 0f else (if (front) 14.dp else 6.dp).toPx()
                                 }
-                                .background(MaterialTheme.colorScheme.surfaceContainerLow),
+                                .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                                .then(if (glassCards) Modifier.border(0.5.dp, pal.content.copy(alpha = 0.12f), shape) else Modifier),
                         ) {
+                            // Внутри карточки — свой живой фон плеера 1.x (у передней и играющей движется,
+                            // у остальных стоит): карточка непрозрачная, задние не просвечивают сквозь переднюю
+                            if (glassCards) LivingBackground(still = !live)
                             if (live) {
                                 holder.SaveableStateProvider(id) {
                                     ModuleHost(
@@ -387,8 +394,8 @@ private fun CornerButtons(corner: Corner) {
     Box(Modifier.fillMaxSize()) {
         Row(Modifier.align(align), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             (Catalog.headerModules() + Catalog.downloads + Catalog.settings).forEach { m ->
-                FilledTonalIconButton(onClick = { Nav.select(m.id) }, modifier = Modifier.size(CORNER_BUTTON)) {
-                    Icon(m.icon, m.title, Modifier.size(20.dp))
+                Box(Modifier.size(CORNER_BUTTON).glass(CircleShape, strength = 1.8f), contentAlignment = Alignment.Center) {
+                    BouncyIconButton(onClick = { Nav.select(m.id) }, size = CORNER_BUTTON) { Icon(m.icon, m.title, Modifier.size(20.dp)) }
                 }
             }
         }

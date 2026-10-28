@@ -66,6 +66,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -88,8 +89,8 @@ fun ModuleTitle(text: String) {
     // Если в верхнем углу карточки кнопки основы — заголовок просто уступает им место в своей строке
     Text(
         text,
-        style = MaterialTheme.typography.headlineSmall,
-        fontWeight = FontWeight.SemiBold,
+        style = MaterialTheme.typography.headlineMedium,
+        fontWeight = FontWeight.Bold,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         modifier = Modifier.padding(start = 20.dp + env.reserveTopStart, end = 20.dp + env.reserveTopEnd, top = 16.dp, bottom = 8.dp),
@@ -159,22 +160,24 @@ fun MusicModule() {
         return
     }
 
+    val pal = LocalPalette.current
     Column(Modifier.fillMaxSize()) {
         if (env.showTitle) ModuleTitle("Музыка")
         LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(bottom = if (track != null) 8.dp else env.listBottom)) {
             items(FAKE_TRACKS, key = { it.id }) { t ->
                 val current = track?.id == t.id
                 Row(
-                    Modifier.fillMaxWidth().clickable { Playback.play(t) }.padding(horizontal = 16.dp, vertical = 8.dp),
+                    Modifier.fillMaxWidth().bouncyClick { Playback.play(t) }.padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Cover(t.color, 48.dp)
                     Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                        Text(t.title, color = if (current) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(t.title, color = if (current) pal.accent else pal.content, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            fontWeight = if (current) FontWeight.SemiBold else FontWeight.Normal)
                         Text("${t.artist} • ${formatTime(t.durationSec.toFloat())}", style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            color = pal.contentSecondary)
                     }
+                    if (current) EqualizerBars(Playback.playing, pal.accent)
                 }
             }
         }
@@ -185,28 +188,29 @@ fun MusicModule() {
 @Composable
 private fun MiniPlayer(track: FakeTrack, onOpen: () -> Unit) {
     val env = LocalModuleEnv.current
+    val pal = LocalPalette.current
+    val shape = RoundedCornerShape(18.dp)
     Row(
         Modifier.fillMaxWidth()
             .padding(start = 8.dp + env.reserveBottomStart, end = 8.dp + env.reserveBottomEnd, top = 8.dp, bottom = 8.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(MaterialTheme.colorScheme.primaryContainer).clickable(onClick = onOpen).padding(8.dp),
+            .clip(shape).background(accentFill(), shape)
+            .bouncyClick(onOpen).padding(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Cover(track.color, 40.dp, 8.dp)
+        Cover(track.color, 42.dp, 10.dp)
         Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
-            Text(track.title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
-            Text(track.artist, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(track.title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold)
+            Text(track.artist, style = MaterialTheme.typography.bodySmall, color = pal.contentSecondary)
         }
-        IconButton(onClick = { Playback.playing = !Playback.playing }) {
-            Icon(if (Playback.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (Playback.playing) "Пауза" else "Играть")
-        }
-        IconButton(onClick = { Playback.next(1) }) { Icon(Icons.Rounded.SkipNext, "Следующий") }
+        BouncyIconButton(onClick = { Playback.playing = !Playback.playing }) { PlayPauseIcon(Playback.playing) }
+        BouncyIconButton(onClick = { Playback.next(1) }) { Icon(Icons.Rounded.SkipNext, "Следующий") }
     }
 }
 
 @Composable
 private fun MusicPlayer(track: FakeTrack, queueOpen: Boolean, onToggleQueue: () -> Unit, onCollapse: () -> Unit) {
     val env = LocalModuleEnv.current
+    val pal = LocalPalette.current
     // Очередь закрывается, пока карточка улетает из стопки, и раскрывается, когда она снова впереди
     val queueTarget = if (queueOpen) (1f - env.stackProgress * 2.2f).coerceIn(0f, 1f) else 0f
     val queueFactor by animateFloatAsState(queueTarget, tunedSpring(), label = "queue")
@@ -214,21 +218,36 @@ private fun MusicPlayer(track: FakeTrack, queueOpen: Boolean, onToggleQueue: () 
         val i = FAKE_TRACKS.indexOfFirst { it.id == track.id }
         (1..5).map { FAKE_TRACKS[(i + it) % FAKE_TRACKS.size] }
     }
+    // Как в 1.x: шапка со стрелкой «свернуть» и плашкой «Сейчас играет» с эквалайзером по центру
     val header = @Composable {
         Row(
-            Modifier.fillMaxWidth().padding(top = 8.dp, start = env.reserveTopStart, end = env.reserveTopEnd),
+            Modifier.fillMaxWidth().height(60.dp).padding(start = env.reserveTopStart, end = env.reserveTopEnd),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(onClick = onCollapse) { Icon(Icons.Rounded.KeyboardArrowDown, "Свернуть") }
-            Text("Сейчас играет", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+            BouncyIconButton(onClick = onCollapse) { Icon(Icons.Rounded.KeyboardArrowDown, "Свернуть", Modifier.size(32.dp)) }
+            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                Row(
+                    Modifier.glass(RoundedCornerShape(50)).padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    EqualizerBars(Playback.playing, pal.accent, height = 11.dp)
+                    Text("Сейчас играет", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(start = 8.dp))
+                }
+            }
+            Spacer(Modifier.width(48.dp))
         }
     }
     val cover = @Composable { m: Modifier ->
         // Обложка вписывается и по ширине, и по высоте — в альбомной не вылезает за экран
         Box(m, contentAlignment = Alignment.Center) {
-            Box(Modifier.fillMaxWidth(0.82f).aspectRatio(1f, matchHeightConstraintsFirst = true), contentAlignment = Alignment.Center) {
-                Box(Modifier.matchParentSize().clip(RoundedCornerShape(24.dp)).background(lerp(track.color, Color.Black, 0.25f)))
-                VinylLogo(160.dp, rotating = Playback.playing)
+            Box(
+                Modifier.fillMaxWidth(0.84f).aspectRatio(1f, matchHeightConstraintsFirst = true)
+                    .shadow(if (Prefs.lightMode.value) 0.dp else 24.dp, RoundedCornerShape(28.dp), ambientColor = pal.accent, spotColor = pal.accent),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(Modifier.matchParentSize().clip(RoundedCornerShape(28.dp))
+                    .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(track.color, lerp(track.color, Color.Black, 0.5f)))))
+                VinylLogo(170.dp, rotating = Playback.playing)
             }
         }
     }
@@ -258,41 +277,43 @@ private fun MusicPlayer(track: FakeTrack, queueOpen: Boolean, onToggleQueue: () 
 @Composable
 private fun PlayerInfo(track: FakeTrack, queueOpen: Boolean, onToggleQueue: () -> Unit, queueFactor: Float, upNext: List<FakeTrack>) {
     val env = LocalModuleEnv.current
+    val pal = LocalPalette.current
+    val arrow by animateFloatAsState(if (queueOpen) 0f else -90f, label = "queueArrow")
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(track.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-        Text(track.artist, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(12.dp))
-        LinearProgressIndicator(
-            progress = { Playback.trackPos / track.durationSec },
-            modifier = Modifier.fillMaxWidth(),
-            drawStopIndicator = {},
-        )
+        Text(track.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(track.artist, color = pal.contentSecondary, style = MaterialTheme.typography.bodyLarge)
+        Spacer(Modifier.height(8.dp))
+        SeekBar(Playback.trackPos / track.durationSec) { Playback.trackPos = it * track.durationSec }
         Row(Modifier.fillMaxWidth()) {
-            Text(formatTime(Playback.trackPos), style = MaterialTheme.typography.labelSmall)
+            Text(formatTime(Playback.trackPos), style = MaterialTheme.typography.labelSmall, color = pal.contentSecondary)
             Spacer(Modifier.weight(1f))
-            Text(formatTime(track.durationSec.toFloat()), style = MaterialTheme.typography.labelSmall)
+            Text(formatTime(track.durationSec.toFloat()), style = MaterialTheme.typography.labelSmall, color = pal.contentSecondary)
         }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            IconButton(onClick = { Playback.next(-1) }) { Icon(Icons.Rounded.SkipPrevious, "Предыдущий", Modifier.size(32.dp)) }
-            FilledIconButton(onClick = { Playback.playing = !Playback.playing }, modifier = Modifier.size(64.dp)) {
-                Icon(if (Playback.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, null, Modifier.size(36.dp))
-            }
-            IconButton(onClick = { Playback.next(1) }) { Icon(Icons.Rounded.SkipNext, "Следующий", Modifier.size(32.dp)) }
+        Row(
+            Modifier.padding(vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.dp),
+        ) {
+            BouncyIconButton(onClick = { Playback.next(-1) }, size = 56.dp) { Icon(Icons.Rounded.SkipPrevious, "Предыдущий", Modifier.size(36.dp)) }
+            PlayButton(Playback.playing) { Playback.playing = !Playback.playing }
+            BouncyIconButton(onClick = { Playback.next(1) }, size = 56.dp) { Icon(Icons.Rounded.SkipNext, "Следующий", Modifier.size(36.dp)) }
         }
         Row(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(onClick = onToggleQueue).padding(vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Icons.AutoMirrored.Rounded.QueueMusic, null)
-            Text("Очередь", modifier = Modifier.padding(start = 10.dp).weight(1f), fontWeight = FontWeight.Medium)
-            Icon(Icons.Rounded.KeyboardArrowDown, null, Modifier.rotate(if (queueOpen) 180f else 0f))
+            Text("Очередь • ${upNext.size}", modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.titleMedium)
+            Icon(Icons.Rounded.KeyboardArrowDown, null, Modifier.rotate(arrow))
         }
-        Column(Modifier.fillMaxWidth().height(260.dp * queueFactor)) {
+        Column(Modifier.fillMaxWidth().height(270.dp * queueFactor)) {
             upNext.forEach { t ->
-                Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Cover(t.color, 36.dp, 6.dp)
-                    Text("${t.title} — ${t.artist}", modifier = Modifier.padding(start = 10.dp), maxLines = 1,
-                        overflow = TextOverflow.Ellipsis)
+                Row(Modifier.fillMaxWidth().bouncyClick { Playback.play(t) }.padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Cover(t.color, 42.dp, 8.dp)
+                    Column(Modifier.padding(start = 12.dp)) {
+                        Text(t.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(t.artist, style = MaterialTheme.typography.bodySmall, color = pal.contentSecondary)
+                    }
                 }
             }
         }
@@ -377,22 +398,21 @@ private fun VideoPlayerBlock(video: FakeVideo, surfaceModifier: Modifier) {
         surfaceModifier.fillMaxWidth().padding(horizontal = 12.dp)
             .aspectRatio(16f / 9f, matchHeightConstraintsFirst = true).clip(RoundedCornerShape(14.dp)),
     )
+    SeekBar(Playback.videoPos / video.durationSec, Modifier.padding(horizontal = 12.dp)) { Playback.videoPos = it * video.durationSec }
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = { Playback.videoPlaying = !Playback.videoPlaying }) {
-            Icon(if (Playback.videoPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, "Пауза")
-        }
-        Text(video.title, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        IconButton(onClick = { Playback.audioOnly = !Playback.audioOnly }) {
+        BouncyIconButton(onClick = { Playback.videoPlaying = !Playback.videoPlaying }) { PlayPauseIcon(Playback.videoPlaying) }
+        Text(video.title, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold)
+        BouncyIconButton(onClick = { Playback.audioOnly = !Playback.audioOnly }) {
             Icon(if (Playback.audioOnly) Icons.Rounded.Videocam else Icons.Rounded.Headphones,
                 if (Playback.audioOnly) "Вернуть картинку" else "Только звук")
         }
-        IconButton(onClick = { Playback.pipRequest = "video" }) {
+        BouncyIconButton(onClick = { Playback.pipRequest = "video" }) {
             Icon(Icons.Rounded.PictureInPictureAlt, "Картинка в картинке")
         }
-        IconButton(onClick = { Playback.fullscreen = true }) { Icon(Icons.Rounded.Fullscreen, "Во весь экран") }
+        BouncyIconButton(onClick = { Playback.fullscreen = true }) { Icon(Icons.Rounded.Fullscreen, "Во весь экран") }
     }
 }
 
@@ -403,7 +423,7 @@ private fun VideoList(video: FakeVideo?, modifier: Modifier) {
         LazyColumn(modifier, contentPadding = PaddingValues(bottom = env.listBottom)) {
             items(FAKE_VIDEOS, key = { it.id }) { v ->
                 Row(
-                    Modifier.fillMaxWidth().clickable { Playback.playVideo(v) }.padding(horizontal = 12.dp, vertical = 6.dp),
+                    Modifier.fillMaxWidth().bouncyClick { Playback.playVideo(v) }.padding(horizontal = 12.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Box(Modifier.width(120.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(10.dp))
@@ -413,7 +433,8 @@ private fun VideoList(video: FakeVideo?, modifier: Modifier) {
                     }
                     Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                         Text(v.title, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                            color = if (video?.id == v.id) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+                            color = if (video?.id == v.id) LocalPalette.current.accent else LocalPalette.current.content,
+                            fontWeight = if (video?.id == v.id) FontWeight.SemiBold else FontWeight.Normal)
                         Text(v.channel, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
@@ -433,8 +454,9 @@ fun PlaceholderModule(id: String) {
         // Горизонтальная карусель — проверка, что жесты основы не мешают жестам модуля
         LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             items(8) { i ->
-                Box(Modifier.size(width = 120.dp, height = 84.dp).clip(RoundedCornerShape(14.dp))
-                    .background(lerp(spec.color, MaterialTheme.colorScheme.surface, 0.15f + i * 0.08f)),
+                val c = lerp(spec.color, Color.Black, i * 0.06f)
+                Box(Modifier.size(width = 132.dp, height = 92.dp).bouncyClick {}.clip(RoundedCornerShape(18.dp))
+                    .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(c, lerp(c, Color.Black, 0.5f)))),
                     contentAlignment = Alignment.BottomStart) {
                     Text("Подборка ${i + 1}", color = Color.White, style = MaterialTheme.typography.labelMedium,
                         modifier = Modifier.padding(8.dp))
@@ -443,8 +465,8 @@ fun PlaceholderModule(id: String) {
         }
         LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(top = 8.dp, bottom = env.listBottom)) {
             items(20) { i ->
-                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(40.dp).clip(CircleShape).background(spec.color.copy(alpha = 0.25f)), contentAlignment = Alignment.Center) {
+                Row(Modifier.fillMaxWidth().bouncyClick {}.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(spec.color.copy(alpha = 0.25f)), contentAlignment = Alignment.Center) {
                         Icon(spec.icon, null, tint = spec.color)
                     }
                     Column(Modifier.padding(start = 12.dp)) {

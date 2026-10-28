@@ -88,11 +88,14 @@ fun DotRailShell() {
         Catalog.headerModules().map { RailItem(it.id, it.title, it.icon, true) } +
         listOf(Catalog.downloads, Catalog.settings).map { RailItem(it.id, it.title, it.icon, true) }
 
-    Box(Modifier.fillMaxSize().systemBarsPadding()) {
-        // Сбоку точки маленькие и лежат поверх края контента — модуль не теряет ширину.
+    BoxWithConstraints(Modifier.fillMaxSize().systemBarsPadding()) {
+        // В портретной сбоку точки маленькие и лежат поверх края контента — модуль не теряет ширину.
+        // В альбомной ширины с запасом — лента получает свою полосу и не закрывает содержимое.
         // Внизу лента оставляет узкую полосу, иначе закроет мини-плеер и нижние кнопки.
+        val landscape = maxWidth > maxHeight
         val pad = when (side) {
-            RailSide.LEFT, RailSide.RIGHT -> PaddingValues(0.dp)
+            RailSide.LEFT -> PaddingValues(start = if (landscape) 32.dp else 0.dp)
+            RailSide.RIGHT -> PaddingValues(end = if (landscape) 32.dp else 0.dp)
             RailSide.BOTTOM -> PaddingValues(bottom = 26.dp)
         }
         Box(Modifier.fillMaxSize().padding(pad)) {
@@ -284,10 +287,7 @@ private fun DotRail(items: List<RailItem>, selectedId: String?, side: RailSide, 
                 Box(
                     Modifier.offset(topLeft.x, topLeft.y)
                         .size(if (vertical) 22.dp else bgLen, if (vertical) bgLen else 22.dp)
-                        .background(
-                            MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = if (Prefs.lightMode.value) 1f else 0.72f),
-                            CircleShape,
-                        )
+                        .glass(CircleShape, strength = 1.6f)
                         .then(if (moving) Modifier.border(1.5.dp, MaterialTheme.colorScheme.primary, CircleShape) else Modifier),
                 )
             }

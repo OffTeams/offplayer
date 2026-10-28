@@ -124,7 +124,8 @@ fun OffApp(inSystemPip: Boolean) {
         LaunchedEffect(Playback.returning, Prefs.shell.value) {
             if (Playback.returning != null && Prefs.shell.value != ShellStyle.CARDS) Playback.returning = null
         }
-        Box(Modifier.fillMaxSize().baseBackground()) {
+        Box(Modifier.fillMaxSize()) {
+            LivingBackground()
             if (!Prefs.firstRunDone.value) {
                 FirstRunWizard()
             } else {

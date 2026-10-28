@@ -13,6 +13,7 @@ import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -49,6 +50,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 
 /** Сколько вкладок помещается в классическую панель. */
 private const val MAX_TABS = 5
@@ -70,13 +75,13 @@ fun ClassicShell() {
     Column(Modifier.fillMaxSize()) {
         AnimatedVisibility(chrome, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
             TopAppBar(
-                title = { Text(current?.title ?: "OFFPlayer", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                title = { Text(current?.title ?: "OFFPlayer", maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold) },
                 actions = {
                     Catalog.headerModules().forEach { m ->
-                        IconButton(onClick = { Nav.select(m.id) }) { Icon(m.icon, m.title) }
+                        BouncyIconButton(onClick = { Nav.select(m.id) }) { Icon(m.icon, m.title) }
                     }
-                    IconButton(onClick = { Nav.select("downloads") }) { Icon(Catalog.downloads.icon, Catalog.downloads.title) }
-                    IconButton(onClick = { Nav.select("settings") }) { Icon(Catalog.settings.icon, Catalog.settings.title) }
+                    BouncyIconButton(onClick = { Nav.select("downloads") }) { Icon(Catalog.downloads.icon, Catalog.downloads.title) }
+                    BouncyIconButton(onClick = { Nav.select("settings") }) { Icon(Catalog.settings.icon, Catalog.settings.title) }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
             )
@@ -114,17 +119,29 @@ fun ClassicShell() {
                             .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)))
                     }
                 }
-                NavigationBar(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = if (Prefs.lightMode.value) 1f else 0.92f),
+                // Панель в стиле плеера 1.x: «стекло» поверх живого фона, активная вкладка — с точкой акцента
+                val pal = LocalPalette.current
+                Row(
+                    Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 12.dp, vertical = 6.dp)
+                        .glass(RoundedCornerShape(26.dp)).padding(vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
                 ) {
                     visible.forEach { m ->
-                        NavigationBarItem(
-                            selected = current?.id == m.id,
-                            onClick = { Nav.select(m.id) },
-                            icon = { Icon(m.icon, null) },
-                            label = { Text(m.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                            colors = NavigationBarItemDefaults.colors(indicatorColor = MaterialTheme.colorScheme.secondaryContainer),
+                        val selected = current?.id == m.id
+                        val tint by androidx.compose.animation.animateColorAsState(
+                            if (selected) pal.content else pal.content.copy(alpha = 0.55f), label = "tabTint",
                         )
+                        Column(
+                            Modifier.weight(1f).bouncyClick { Nav.select(m.id) }
+                                .semantics { this.selected = selected; role = androidx.compose.ui.semantics.Role.Tab }
+                                .padding(vertical = 4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Icon(m.icon, null, tint = if (selected) pal.accent else tint)
+                            Text(m.title, color = tint, style = MaterialTheme.typography.labelMedium, maxLines = 1,
+                                overflow = TextOverflow.Ellipsis, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
+                            ActiveDot(selected, Modifier.padding(top = 3.dp))
+                        }
                     }
                 }
             }
