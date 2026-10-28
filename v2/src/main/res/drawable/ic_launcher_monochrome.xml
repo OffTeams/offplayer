@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Тематическая иконка (Android 13+): кольцо из четырёх модулей и ярлык с вырезом play, без дорожек -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="5"
+        android:pathData="M74.06,35.93 A27,27 0 0,1 74.06,72.07 M72.07,74.06 A27,27 0 0,1 35.93,74.06 M33.94,72.07 A27,27 0 0,1 33.94,35.93 M35.93,33.94 A27,27 0 0,1 72.07,33.94" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M42,54a12,12 0 1,0 24,0a12,12 0 1,0 -24,0 M51,47.5 L51,60.5 L61,54 Z" />
+</vector>

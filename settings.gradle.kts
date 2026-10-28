@@ -16,3 +16,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "OFFPlayer"
 include(":app")
+// OFFPlayer 2.0 (ветка dev/2.0): новая основа с модулями
+include(":v2")
