@@ -109,4 +109,7 @@
     <string name="yt_no_notifications">Aucune notification pour l’instant</string>
     <string name="yt_videos">Vidéos</string>
     <string name="yt_history">Historique</string>
+    <string name="yt_push">Notifications YouTube</string>
+    <string name="yt_push_desc">Nouvelles vidéos des abonnements et réponses, en notifications de l’app</string>
+    <string name="yt_notifications_channel">Notifications YouTube</string>
 </resources>

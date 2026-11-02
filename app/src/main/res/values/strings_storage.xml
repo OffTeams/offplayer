@@ -108,4 +108,7 @@
     <string name="yt_no_notifications">No notifications yet</string>
     <string name="yt_videos">Videos</string>
     <string name="yt_history">History</string>
+    <string name="yt_push">YouTube notifications</string>
+    <string name="yt_push_desc">New videos from subscriptions and replies — as app notifications</string>
+    <string name="yt_notifications_channel">YouTube notifications</string>
 </resources>

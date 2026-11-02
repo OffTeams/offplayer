@@ -29,6 +29,8 @@ class OffPlayerApp : Application(), ImageLoaderFactory {
         com.offplayer.app.data.PodcastProgress.init(this)
         com.offplayer.app.data.NetworkState.init(this)
         com.offplayer.app.update.AppUpdater.init(this)
+        // Оповещения YouTube уведомлениями приложения — фоновая проверка раз в 15 минут
+        com.offplayer.app.youtube.YtNotifyWorker.schedule(this)
         MediaRepository.start(this)
         // Фоновая проверка актуальности плагина загрузки (при подключении к сети и ежедневно)
         com.offplayer.app.download.PluginUpdater.init(this)

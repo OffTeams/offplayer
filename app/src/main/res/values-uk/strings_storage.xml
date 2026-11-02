@@ -111,4 +111,7 @@
     <string name="yt_no_notifications">Сповіщень поки немає</string>
     <string name="yt_videos">Відео</string>
     <string name="yt_history">Історія</string>
+    <string name="yt_push">Сповіщення YouTube</string>
+    <string name="yt_push_desc">Нові відео підписок і відповіді — сповіщеннями застосунку</string>
+    <string name="yt_notifications_channel">Сповіщення YouTube</string>
 </resources>

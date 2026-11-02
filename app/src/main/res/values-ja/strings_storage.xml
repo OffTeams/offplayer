@@ -105,4 +105,7 @@
     <string name="yt_no_notifications">通知はまだありません</string>
     <string name="yt_videos">動画</string>
     <string name="yt_history">履歴</string>
+    <string name="yt_push">YouTube の通知</string>
+    <string name="yt_push_desc">登録チャンネルの新着動画や返信をアプリの通知で</string>
+    <string name="yt_notifications_channel">YouTube の通知</string>
 </resources>

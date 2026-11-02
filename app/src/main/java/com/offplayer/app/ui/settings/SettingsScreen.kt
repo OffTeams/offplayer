@@ -279,8 +279,16 @@ private fun YouTubeRows() {
     LaunchedEffect(Unit) { com.offplayer.app.youtube.YouTubeAccount.refresh() }
     SwitchRow(
         Icons.Rounded.SmartDisplay, tr(R.string.set_youtube_tab), tr(R.string.set_youtube_tab_desc), enabled,
-        onChange = AppSettings::setYoutubeTab,
+        onChange = { AppSettings.setYoutubeTab(it); com.offplayer.app.youtube.YtNotifyWorker.schedule(context) },
     )
+    if (enabled && signedIn) {
+        // Оповещения YouTube (новые ролики подписок, ответы) — уведомлениями приложения
+        var push by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(com.offplayer.app.youtube.YtNotifications.pushEnabled(context)) }
+        SwitchRow(
+            Icons.Rounded.SmartDisplay, tr(R.string.yt_push), tr(R.string.yt_push_desc), push,
+            onChange = { push = it; com.offplayer.app.youtube.YtNotifications.setPushEnabled(context, it) },
+        )
+    }
     if (signedIn) {
         SettingRow(Icons.Rounded.Logout, tr(R.string.yt_sign_out), tr(R.string.yt_sign_out_desc), onClick = {
             com.offplayer.app.youtube.YouTubeAccount.signOut()

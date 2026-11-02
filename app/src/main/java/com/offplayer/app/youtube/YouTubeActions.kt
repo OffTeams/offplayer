@@ -3,6 +3,7 @@ package com.offplayer.app.youtube
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import org.schabi.newpipe.extractor.Page
@@ -80,6 +81,47 @@ object YouTubeActions {
     private val firstPages = java.util.concurrent.ConcurrentHashMap<String, kotlinx.coroutines.Deferred<YtComments>>()
 
     /** Первая страница комментариев грузится заранее — пока получается поток ролика, а не после открытия страницы. */
+    private val watchScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
+    private val markedWatched = java.util.Collections.synchronizedSet(HashSet<String>())
+
+    /**
+     * Отметить ролик просмотренным в аккаунте, чтобы он попал в историю YouTube (так же делает yt-dlp
+     * с --mark-watched): со страницы ролика берётся адрес статистики просмотра и вызывается от имени аккаунта.
+     * Один раз за запуск на ролик; без входа ничего не делает.
+     */
+    fun markWatched(videoId: String) {
+        if (!YouTubeAccount.signedIn.value || !markedWatched.add(videoId)) return
+        watchScope.launch {
+            runCatching {
+                val headers = YouTubeAccount.authHeaders()
+                val page = httpGet("https://www.youtube.com/watch?v=$videoId&hl=en", headers)
+                val base = WATCH_URL.find(page)?.groupValues?.get(1) ?: error("no playback url")
+                val url = base.replace("\\u0026", "&").replace("\\/", "/")
+                val cpn = (1..16).map { CPN_CHARS.random() }.joinToString("")
+                httpGet("$url&ver=2&cpn=$cpn", headers)
+            }.onFailure { markedWatched.remove(videoId) }
+        }
+    }
+
+    private val WATCH_URL = Regex("\"videostatsPlaybackUrl\"\\s*:\\s*\\{\\s*\"baseUrl\"\\s*:\\s*\"([^\"]+)\"")
+    private const val CPN_CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"
+
+    private fun httpGet(url: String, headers: Map<String, String>): String {
+        val conn = (java.net.URL(url).openConnection() as java.net.HttpURLConnection).apply {
+            connectTimeout = 15_000
+            readTimeout = 15_000
+            setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36")
+            setRequestProperty("Accept-Language", "en")
+            headers.forEach { (k, v) -> setRequestProperty(k, v) }
+        }
+        try {
+            if (conn.responseCode !in 200..299) error("HTTP ${conn.responseCode}")
+            return conn.inputStream.bufferedReader().readText()
+        } finally {
+            conn.disconnect()
+        }
+    }
+
     fun prefetch(videoId: String) {
         firstPages.computeIfAbsent(videoId) { prefetchScope.async { load(videoId, null) } }
     }

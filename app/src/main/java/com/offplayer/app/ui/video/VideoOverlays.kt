@@ -65,6 +65,7 @@ import androidx.media3.common.TrackSelectionOverride
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.rounded.FastRewind
 import androidx.compose.material.icons.rounded.Fullscreen
 import androidx.compose.material.icons.rounded.FullscreenExit
@@ -380,6 +381,9 @@ fun PlayerSettingsPanel(
                 .fillMaxWidth()
                 .background(PanelSurface, AppShapes.Large)
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
+                // В альбомной ориентации панель выше экрана — она прокручивается, а не обрезается
+                .clip(AppShapes.Large)
+                .verticalScroll(rememberScrollState())
                 .padding(vertical = 12.dp),
         ) {
             Row(Modifier.padding(start = 20.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {

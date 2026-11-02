@@ -107,4 +107,7 @@
     <string name="yt_no_notifications">Noch keine Benachrichtigungen</string>
     <string name="yt_videos">Videos</string>
     <string name="yt_history">Verlauf</string>
+    <string name="yt_push">YouTube-Benachrichtigungen</string>
+    <string name="yt_push_desc">Neue Videos aus Abos und Antworten – als App-Benachrichtigungen</string>
+    <string name="yt_notifications_channel">YouTube-Benachrichtigungen</string>
 </resources>

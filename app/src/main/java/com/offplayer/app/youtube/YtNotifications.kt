@@ -37,6 +37,33 @@ object YtNotifications {
         _unseen.value = r.optInt("unseenCount", Regex(""""unseenCount":(\d+)""").find(r.toString())?.groupValues?.get(1)?.toIntOrNull() ?: 0)
     }
 
+    private const val PREFS = "yt_notifications"
+    private const val KEY_PUSH = "push"
+    private const val KEY_POSTED = "posted"
+
+    private fun prefs(context: android.content.Context) = context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
+
+    /** Показывать оповещения YouTube уведомлениями приложения (по умолчанию — да). */
+    fun pushEnabled(context: android.content.Context): Boolean = prefs(context).getBoolean(KEY_PUSH, true)
+
+    fun setPushEnabled(context: android.content.Context, v: Boolean) {
+        prefs(context).edit().putBoolean(KEY_PUSH, v).apply()
+        YtNotifyWorker.schedule(context)
+    }
+
+    /** Непрочитанные оповещения, о которых ещё не было уведомления. Первый запуск только запоминает текущие. */
+    suspend fun listForPush(context: android.content.Context): List<YtNotification> {
+        val all = list().filter { !it.read }
+        val p = prefs(context)
+        val first = !p.contains(KEY_POSTED)
+        val posted = p.getStringSet(KEY_POSTED, emptySet()).orEmpty()
+        val key = { n: YtNotification -> (n.videoId ?: n.channelId ?: "") + "|" + n.text.hashCode() }
+        val fresh = all.filter { key(it) !in posted }
+        // Храним только ключи последних оповещений — список не растёт бесконечно
+        p.edit().putStringSet(KEY_POSTED, (all.map(key) + posted).take(200).toSet()).apply()
+        return if (first) emptyList() else fresh
+    }
+
     suspend fun list(): List<YtNotification> = withContext(Dispatchers.IO) {
         val r = YouTubeApi.authPost(
             "notification/get_notification_menu",

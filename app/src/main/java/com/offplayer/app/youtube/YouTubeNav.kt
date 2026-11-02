@@ -18,6 +18,9 @@ object YouTubeNav {
     /** Растёт при нажатии на уже открытую вкладку YouTube в нижнем меню — лента возвращается к началу «Главной». */
     val homeTop = MutableStateFlow(0)
 
+    /** Растёт, когда нужно открыть вкладку YouTube на ленте Shorts (уведомление о Shorts). */
+    val openShortsTab = MutableStateFlow(0)
+
     fun download(url: String) {
         downloadRequest.value = url
     }

@@ -521,13 +521,15 @@ fun VideoPlayerScreen(
                 pv.findViewById<View>(androidx.media3.ui.R.id.exo_progress)?.addOnLayoutChangeListener { v, _, _, _, _, _, _, _, _ ->
                     if (v.width != timeBarWidth) timeBarWidth = v.width
                 }
-                // Полоса перемотки реагирует только на касание самой линии (±8 dp от неё): нажатие рядом
-                // с ней — как по пустому месту (скрыть интерфейс), а не перемотка
+                // Полоса перемотки реагирует только на касание около самой линии (±16 dp от неё): нажатие выше —
+                // как по пустому месту (скрыть интерфейс), а не перемотка.
+                // Линия нарисована у нижнего края области касания (48 dp), а не по её центру: ~8 dp от низа
                 pv.findViewById<View>(androidx.media3.ui.R.id.exo_progress)?.let { bar ->
-                    val band = 8f * ctx.resources.displayMetrics.density
+                    val dp = ctx.resources.displayMetrics.density
+                    val band = 16f * dp
                     var ignore = false
                     bar.setOnTouchListener { v, ev ->
-                        if (ev.actionMasked == MotionEvent.ACTION_DOWN) ignore = abs(ev.y - v.height / 2f) > band
+                        if (ev.actionMasked == MotionEvent.ACTION_DOWN) ignore = abs(ev.y - (v.height - 8f * dp)) > band
                         if (ignore && ev.actionMasked == MotionEvent.ACTION_UP) pv.hideController()
                         ignore
                     }

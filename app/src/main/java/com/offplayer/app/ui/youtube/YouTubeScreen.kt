@@ -233,6 +233,12 @@ fun YouTubeScreen(active: Boolean, onDownload: (String) -> Unit) {
         pages.animateScrollToPage(0)
         states[YtFeed.Home]?.list?.animateScrollToItem(0)
     }
+    val shortsTab by com.offplayer.app.youtube.YouTubeNav.openShortsTab.collectAsStateWithLifecycle()
+    LaunchedEffect(shortsTab) {
+        if (shortsTab == 0) return@LaunchedEffect
+        notifOpen = false
+        pages.animateScrollToPage(1)
+    }
     // Shorts из строки (подписки, история) открывается в ленте Shorts
     val openShort: (YtVideo) -> Unit = { v ->
         com.offplayer.app.youtube.YouTubeNav.shortRequest.value = v.id
@@ -246,7 +252,12 @@ fun YouTubeScreen(active: Boolean, onDownload: (String) -> Unit) {
         }
     }
     // История открывается своей страницей справа от Shorts — загружается, когда до неё долистали
-    LaunchedEffect(pages.currentPage == 2, signedIn, accountVersion) {
+    // История перезагружается при каждом открытии и после закрытия плеера — в ней сразу видно только что просмотренное
+    val playerOpen by VideoController.open.collectAsStateWithLifecycle()
+    LaunchedEffect(pages.currentPage == 2, signedIn, accountVersion, playerOpen) {
+        if (playerOpen) return@LaunchedEffect
+        // Отметка о просмотре доходит до YouTube не мгновенно
+        kotlinx.coroutines.delay(1500)
         if (pages.currentPage == 2 && signedIn) {
             val s = states.getOrPut(YtFeed.History) { FeedState() }
             if (!s.loading) { s.refreshing = false; loadMore(reset = true, target = YtFeed.History) }

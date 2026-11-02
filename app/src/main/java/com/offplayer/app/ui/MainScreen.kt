@@ -215,6 +215,13 @@ fun MainScreen(
         if (videoOpen) VideoController.close(stopPlayback = false)
         pagerState.scrollToPage(pageOf(MainTab.DOWNLOADS))
     }
+    // Уведомление о Shorts — вкладка YouTube, лента Shorts открывается самой вкладкой
+    val ytShortsTab by com.offplayer.app.youtube.YouTubeNav.openShortsTab.collectAsStateWithLifecycle()
+    LaunchedEffect(ytShortsTab) {
+        if (ytShortsTab == 0) return@LaunchedEffect
+        if (videoOpen) VideoController.close(stopPlayback = false)
+        if (MainTab.YOUTUBE in tabs) pagerState.scrollToPage(pageOf(MainTab.YOUTUBE))
+    }
     // Аватар канала в плеере — страница канала во вкладке YouTube (сам переход делает вкладка)
     val ytChannel by com.offplayer.app.youtube.YouTubeNav.channelRequest.collectAsStateWithLifecycle()
     LaunchedEffect(ytChannel) {

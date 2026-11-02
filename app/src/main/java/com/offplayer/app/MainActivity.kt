@@ -161,6 +161,26 @@ class MainActivity : ComponentActivity() {
             ACTION_OPEN_PLAYER -> openPlayerTick++
             ACTION_OPEN_VIDEO -> VideoController.show()
             ACTION_OPEN_DOWNLOADS -> UiEvents.openDownloads.value++
+            // Уведомление об оповещении YouTube: ролик — в плеер, Shorts — в ленту Shorts, иначе — канал
+            ACTION_OPEN_YOUTUBE -> {
+                val video = intent.getStringExtra(EXTRA_YT_VIDEO)
+                val channel = intent.getStringExtra(EXTRA_YT_CHANNEL)
+                when {
+                    video != null && intent.getBooleanExtra(EXTRA_YT_SHORT, false) -> {
+                        com.offplayer.app.youtube.YouTubeNav.shortRequest.value = video
+                        com.offplayer.app.youtube.YouTubeNav.openShortsTab.value++
+                    }
+                    video != null -> lifecycleScope.launch {
+                        runCatching {
+                            com.offplayer.app.youtube.YouTubeStreams.resolve(
+                                this@MainActivity,
+                                com.offplayer.app.youtube.YtVideo(video, "", "", null, null, "", "https://i.ytimg.com/vi/$video/hqdefault.jpg"),
+                            )
+                        }.onSuccess { VideoController.playStream(it) }
+                    }
+                    channel != null -> com.offplayer.app.youtube.YouTubeNav.openChannel(channel, "")
+                }
+            }
             ACTION_REVEAL -> {
                 val kind = runCatching { DownloadResult.Kind.valueOf(intent.getStringExtra(EXTRA_REVEAL_KIND) ?: "") }.getOrNull()
                 val id = intent.getStringExtra(EXTRA_REVEAL_ID)
@@ -376,6 +396,10 @@ class MainActivity : ComponentActivity() {
     }
 
     companion object {
+        const val ACTION_OPEN_YOUTUBE = "com.offplayer.app.OPEN_YOUTUBE"
+        const val EXTRA_YT_VIDEO = "yt_video"
+        const val EXTRA_YT_SHORT = "yt_short"
+        const val EXTRA_YT_CHANNEL = "yt_channel"
         const val ACTION_OPEN_PLAYER = "com.offplayer.app.OPEN_PLAYER"
         const val ACTION_OPEN_VIDEO = "com.offplayer.app.OPEN_VIDEO"
         const val ACTION_OPEN_DOWNLOADS = "com.offplayer.app.OPEN_DOWNLOADS"

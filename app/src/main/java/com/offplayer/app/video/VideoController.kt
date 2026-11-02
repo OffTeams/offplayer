@@ -64,12 +64,27 @@ object VideoController {
     private val pending = mutableListOf<(MediaController) -> Unit>()
     private val scope = MainScope()
     private var progressJob: Job? = null
+    private var ticks = 0
 
     private val _ui = MutableStateFlow(VideoUiState())
     val ui: StateFlow<VideoUiState> = _ui.asStateFlow()
 
     private val listener = object : Player.Listener {
-        override fun onEvents(player: Player, events: Player.Events) = sync()
+        override fun onEvents(player: Player, events: Player.Events) {
+            // Пауза, перемотка или смена ролика — запоминаем место в ролике YouTube
+            if (events.containsAny(Player.EVENT_IS_PLAYING_CHANGED, Player.EVENT_POSITION_DISCONTINUITY)) saveResume()
+            sync()
+        }
+    }
+
+    /** Ролик YouTube, который сейчас в плеере, и место в нём — для продолжения при следующем открытии. */
+    private fun saveResume() {
+        val c = _controller.value ?: return
+        // Прямой эфир не запоминаем — его открывают с текущего момента
+        if (c.isCurrentMediaItemLive || !c.isCurrentMediaItemSeekable) return
+        val id = c.currentMediaItem?.mediaId?.toLongOrNull()?.takeIf { com.offplayer.app.youtube.YouTubeStreams.isStream(it) } ?: return
+        val ytId = com.offplayer.app.youtube.YouTubeStreams.youtubeIdOf(id) ?: return
+        com.offplayer.app.youtube.YtResume.save(ytId, c.currentPosition, c.duration)
     }
 
     private fun sync() {
@@ -213,6 +228,8 @@ object VideoController {
                     delay(250)
                     val ctl = _controller.value ?: break
                     if (ctl.isPlaying) checkSegments(ctl)
+                    // Раз в 5 секунд — на случай, если приложение закроют без паузы
+                    if (ctl.isPlaying && ++ticks % 20 == 0) saveResume()
                 }
             }
             pending.toList().forEach { it(c) }
@@ -255,7 +272,9 @@ object VideoController {
         watchPage = true
         // Как в YouTube: обычный ролик открывается на весь экран в альбомной ориентации, вертикальный — в портретной
         expectedAspect = if (stream.width > 0 && stream.height > 0) stream.width.toFloat() / stream.height else 16f / 9f
-        playItems(listOf(streamItem(stream)), 0)
+        // Ролик продолжается с места, где его оставили, и попадает в историю просмотра аккаунта YouTube
+        playItems(listOf(streamItem(stream)), 0, com.offplayer.app.youtube.YtResume.get(stream.youtubeId))
+        com.offplayer.app.youtube.YouTubeActions.markWatched(stream.youtubeId)
     }
 
     /** Смена качества: тот же ролик с другим потоком продолжается с того же места. */
@@ -292,11 +311,12 @@ object VideoController {
         playItems(listOf(videoItem(uri.toString(), uri, displayName(context, uri))), 0)
     }
 
-    private fun playItems(items: List<MediaItem>, start: Int) {
+    private fun playItems(items: List<MediaItem>, start: Int, startMs: Long = 0L) {
         if (items.isEmpty()) return
         _open.value = true
+        saveResume()
         withController { c ->
-            c.setMediaItems(items, start.coerceIn(0, items.lastIndex), 0L)
+            c.setMediaItems(items, start.coerceIn(0, items.lastIndex), startMs)
             c.setPlaybackSpeed(AppSettings.videoSpeed.value)
             c.prepare()
             c.play()
@@ -309,6 +329,7 @@ object VideoController {
     }
 
     fun close(stopPlayback: Boolean) {
+        saveResume()
         val wasOpen = _open.value
         _open.value = false
         if (stopPlayback) {

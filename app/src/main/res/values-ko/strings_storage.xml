@@ -105,4 +105,7 @@
     <string name="yt_no_notifications">아직 알림이 없습니다</string>
     <string name="yt_videos">동영상</string>
     <string name="yt_history">시청 기록</string>
+    <string name="yt_push">YouTube 알림</string>
+    <string name="yt_push_desc">구독 채널의 새 동영상과 답글을 앱 알림으로</string>
+    <string name="yt_notifications_channel">YouTube 알림</string>
 </resources>

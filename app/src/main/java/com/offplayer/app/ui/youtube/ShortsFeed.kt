@@ -182,6 +182,8 @@ fun ShortsFeed(active: Boolean, onDownload: (String) -> Unit, onChannel: (id: St
     var uiHidden by remember { mutableStateOf(false) }
     LaunchedEffect(active, videoOpen) { paused = false }
     LaunchedEffect(currentId) { paused = false }
+    // Просмотренный Shorts — в историю аккаунта (соседние, подготовленные заранее, не отмечаются)
+    LaunchedEffect(currentId, active) { if (active) currentId?.let { com.offplayer.app.youtube.YouTubeActions.markWatched(it) } }
     // Играет только текущий; ушедший с экрана останавливается и возвращается к началу
     val currentPlayer = currentId?.let { players[it] }
     LaunchedEffect(currentId, currentPlayer, active, videoOpen, paused) {
