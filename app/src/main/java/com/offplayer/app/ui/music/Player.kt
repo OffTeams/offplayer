@@ -1,5 +1,7 @@
 package com.offplayer.app.ui.music
 
+import com.offplayer.app.ui.pinchPeek
+
 import com.offplayer.app.tr
 import com.offplayer.app.R
 
@@ -362,7 +364,9 @@ fun NowPlayingScreen(state: PlayerUiState, onCollapse: () -> Unit, onStop: () ->
                                 },
                             contentAlignment = Alignment.Center,
                         ) {
-                            if (videoOn) MusicVideo(videoId!!, state.isPlaying, onColors = { frameColors = it }, modifier = Modifier.fillMaxSize())
+                            // Видео вместо обложки можно рассмотреть щипком — после отпускания оно возвращается на место
+                            if (videoOn) MusicVideo(videoId!!, state.isPlaying, onColors = { frameColors = it },
+                                modifier = Modifier.fillMaxSize().then(Modifier.pinchPeek(com.offplayer.app.ui.rememberPeekState())))
                             else CoverCarousel(
                                 trackKey = state.mediaId,
                                 artUri = track?.uri,

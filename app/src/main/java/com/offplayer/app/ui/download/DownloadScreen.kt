@@ -1,5 +1,11 @@
 package com.offplayer.app.ui.download
 
+import androidx.compose.foundation.layout.Box
+
+import androidx.compose.foundation.layout.aspectRatio
+
+import androidx.compose.ui.draw.blur
+
 import com.offplayer.app.tr
 import com.offplayer.app.R
 
@@ -194,6 +200,25 @@ fun DownloadScreen(pendingUrl: String?, onUrlConsumed: () -> Unit) {
                         .fillMaxWidth()
                         .focusProperties { canFocus = pageActive },
                 )
+                // Превью ролика по ссылке: картинка 16:9 (вертикальные и квадратные — по центру на размытом фоне) и название
+                var preview by remember { mutableStateOf<Downloader.QuickInfo?>(null) }
+                LaunchedEffect(url, urlValid) {
+                    preview = null
+                    if (urlValid) {
+                        kotlinx.coroutines.delay(300)
+                        preview = Downloader.fetchQuickInfo(url)
+                    }
+                }
+                AnimatedVisibility(visible = preview != null) {
+                    preview?.let { p ->
+                        Column(Modifier.padding(top = 12.dp)) {
+                            p.thumbnail?.let { DownloadThumb(it, Modifier.fillMaxWidth()) }
+                            Text(p.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
+                                maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
+                            p.channel?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1) }
+                        }
+                    }
+                }
                 Spacer(Modifier.height(12.dp))
 
                 SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
@@ -467,6 +492,26 @@ private fun OptionChip(label: String, selected: Boolean, onClick: () -> Unit) {
     )
 }
 
+/** Превью YouTube по ссылке (без запроса); у остальных сайтов — null, его даёт быстрый запрос сведений. */
+private fun youtubeThumb(url: String): String? =
+    Regex("""(?:v=|youtu\.be/|shorts/|live/)([\w-]{11})""").find(url)?.groupValues?.get(1)?.let { "https://i.ytimg.com/vi/$it/hqdefault.jpg" }
+
+/**
+ * Превью 16:9: картинка целиком по центру, а поля по бокам — она же, размытая (для вертикальных и квадратных),
+ * как у Shorts в уведомлениях. Щипок — рассмотреть, после отпускания возвращается на место.
+ */
+@Composable
+private fun DownloadThumb(url: String, modifier: Modifier) {
+    com.offplayer.app.ui.PeekBox(modifier.aspectRatio(16f / 9f)) {
+        Box(Modifier.fillMaxSize().clip(AppShapes.Thumb).background(MaterialTheme.colorScheme.surfaceVariant)) {
+            coil.compose.AsyncImage(url, null, contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier.fillMaxSize().blur(18.dp))
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.2f)))
+            coil.compose.AsyncImage(url, null, contentScale = androidx.compose.ui.layout.ContentScale.Fit, modifier = Modifier.fillMaxSize())
+        }
+    }
+}
+
 @Composable
 private fun DownloadCard(task: DownloadTask, modifier: Modifier = Modifier) {
     val context = LocalContext.current
@@ -493,7 +538,15 @@ private fun DownloadCard(task: DownloadTask, modifier: Modifier = Modifier) {
                     DownloadStatus.QUEUED -> Icons.Rounded.Schedule to MaterialTheme.colorScheme.onSurfaceVariant
                     else -> (if (task.kind == DownloadKind.AUDIO) Icons.Rounded.MusicNote else Icons.Rounded.Movie) to MaterialTheme.colorScheme.onSurface
                 }
-                Icon(icon, null, tint = tint)
+                // Превью загружаемого ролика, значок состояния — в его углу
+                var thumb by remember(task.url) { mutableStateOf(youtubeThumb(task.url)) }
+                LaunchedEffect(task.url) { if (thumb == null) thumb = Downloader.fetchQuickInfo(task.url)?.thumbnail }
+                val shown = thumb
+                if (shown != null) Box {
+                    DownloadThumb(shown, Modifier.width(112.dp))
+                    Icon(icon, null, tint = tint, modifier = Modifier.align(Alignment.BottomEnd).padding(4.dp).size(20.dp)
+                        .background(MaterialTheme.colorScheme.surfaceContainer, androidx.compose.foundation.shape.CircleShape).padding(2.dp))
+                } else Icon(icon, null, tint = tint)
                 Column(
                     Modifier
                         .weight(1f)

@@ -1,5 +1,7 @@
 package com.offplayer.app.ui.youtube
 
+import com.offplayer.app.ui.pinchPeek
+
 import com.offplayer.app.tr
 import com.offplayer.app.R
 
@@ -265,7 +267,8 @@ fun ShortsFeed(active: Boolean, onDownload: (String) -> Unit, onChannel: (id: St
                         it.resizeMode = if (landscape) androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT else androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
                     },
                     onRelease = { it.player = null },
-                    modifier = Modifier.fillMaxSize(),
+                    // Щипок — рассмотреть кадр; после отпускания он возвращается на место
+                    modifier = Modifier.fillMaxSize().pinchPeek(com.offplayer.app.ui.rememberPeekState()),
                 )
             }
             if (isCurrent && (stream == null)) CircularProgressIndicator(Modifier.align(Alignment.Center), color = Color.White)

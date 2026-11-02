@@ -174,10 +174,13 @@ fun MediaArt(
     icon: ImageVector = if (isVideo) Icons.Rounded.Movie else Icons.Rounded.MusicNote,
     /** Тень под обложкой — придаёт объём спискам и сеткам. */
     elevation: Dp = 0.dp,
+    /** Щипок — рассмотреть обложку (увеличить или отдалить, после отпускания — на место). */
+    peek: Boolean = true,
 ) {
+    PeekBox(modifier.then(if (elevation > 0.dp) Modifier.shadow(elevation, shape, clip = false) else Modifier), enabled = peek) {
     Box(
-        modifier
-            .then(if (elevation > 0.dp) Modifier.shadow(elevation, shape, clip = false) else Modifier)
+        Modifier
+            .fillMaxSize()
             .clip(shape)
             .background(MaterialTheme.colorScheme.surfaceVariant),
         contentAlignment = Alignment.Center,
@@ -216,6 +219,7 @@ fun MediaArt(
                 modifier = Modifier.matchParentSize(),
             )
         }
+    }
     }
 }
 

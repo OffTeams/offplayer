@@ -1,5 +1,9 @@
 package com.offplayer.app.ui.youtube
 
+import com.offplayer.app.ui.pinchPeek
+
+import androidx.compose.ui.zIndex
+
 import androidx.compose.foundation.layout.fillMaxHeight
 
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -881,7 +885,9 @@ private fun ShortsRow(shorts: List<YtVideo>, onOpen: (YtVideo) -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         items(shorts, key = { "s_" + it.id }) { v ->
-            Box(Modifier.width(132.dp).aspectRatio(9f / 16f).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceVariant).clickable { onOpen(v) }) {
+            // Щипок — рассмотреть превью Shorts, как обычные превью; после отпускания возвращается на место
+            com.offplayer.app.ui.PeekBox(Modifier.width(132.dp).aspectRatio(9f / 16f)) {
+            Box(Modifier.fillMaxSize().clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceVariant).clickable { onOpen(v) }) {
                 AsyncImage(v.thumbnail, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                 Column(
                     Modifier.align(Alignment.BottomStart).fillMaxWidth()
@@ -891,6 +897,7 @@ private fun ShortsRow(shorts: List<YtVideo>, onOpen: (YtVideo) -> Unit) {
                     Text(v.title, color = Color.White, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     if (v.meta.isNotEmpty()) Text(v.meta, color = Color.White.copy(alpha = 0.85f), style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
+            }
             }
         }
     }
@@ -928,10 +935,11 @@ private fun VideoRow(v: YtVideo, opening: Boolean, onClick: () -> Unit, onDownlo
     var menu by remember { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
     if (saving) SaveToPlaylistDialog(com.offplayer.app.youtube.OnlineStore.itemOf(v), onDismiss = { saving = false })
-    BoxWithConstraints(Modifier.fillMaxWidth()) {
+    val rowPeek = com.offplayer.app.ui.rememberPeekState()
+    BoxWithConstraints(Modifier.fillMaxWidth().zIndex(if (rowPeek.active) 1f else 0f)) {
         val thumbWidth = (maxWidth * 0.42f).coerceAtMost(280.dp)
         Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(start = 12.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.Top) {
-            Box(Modifier.width(thumbWidth).aspectRatio(16f / 9f).clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
+            Box(Modifier.width(thumbWidth).aspectRatio(16f / 9f).zIndex(if (rowPeek.active) 1f else 0f).then(Modifier.pinchPeek(rowPeek)).clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
                 AsyncImage(v.thumbnail, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                 v.duration?.let {
                     Text(
@@ -966,10 +974,12 @@ internal fun VideoCard(v: YtVideo, opening: Boolean, onClick: () -> Unit, onDown
     var menu by remember { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
     if (saving) SaveToPlaylistDialog(com.offplayer.app.youtube.OnlineStore.itemOf(v), onDismiss = { saving = false })
-    Column(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(bottom = 4.dp)) {
+    // Щипок по превью — увеличить или отдалить, пока пальцы на экране (как в Telegram)
+    val peek = com.offplayer.app.ui.rememberPeekState()
+    Column(Modifier.fillMaxWidth().zIndex(if (peek.active) 1f else 0f).clickable(onClick = onClick).padding(bottom = 4.dp)) {
         // Превью во всю ширину экрана без скруглений — как в приложении YouTube
         // В сетке широкого экрана превью скруглены, как в YouTube для планшетов
-        Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).then(if (rounded) Modifier.clip(RoundedCornerShape(12.dp)) else Modifier).background(MaterialTheme.colorScheme.surfaceVariant)) {
+        Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).zIndex(if (peek.active) 1f else 0f).then(Modifier.pinchPeek(peek)).then(if (rounded) Modifier.clip(RoundedCornerShape(12.dp)) else Modifier).background(MaterialTheme.colorScheme.surfaceVariant)) {
             AsyncImage(v.thumbnail, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
             val badge = when {
                 v.isLive -> tr(R.string.yt_live)

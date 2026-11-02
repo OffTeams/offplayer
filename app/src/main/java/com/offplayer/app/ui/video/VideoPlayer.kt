@@ -257,6 +257,8 @@ class PlayerGestureLayout(context: Context, val playerView: PlayerView) : FrameL
     var sideZonesEnabled = true
     /** Страница ролика в портретной: громкость — горизонтальным свайпом по видео (вправо громче). */
     var horizontalVolume = false
+    /** Видео на весь экран в портретной: свайп вбок в верхней части — яркость, в нижней — громкость. */
+    var portraitBands = false
     private var horizontal = false
     /** Любое касание экрана — перезапускает таймер скрытия интерфейса. */
     var onAnyTouch: (() -> Unit)? = null
@@ -292,16 +294,47 @@ class PlayerGestureLayout(context: Context, val playerView: PlayerView) : FrameL
 
     /** Кадр увеличен — свайпы двигают его, а не меняют яркость, громкость и не сворачивают плеер. */
     val zoomed: Boolean get() = scale > 1.01f
+    /** Кадр увеличен или уменьшен — двойное нажатие в центре возвращает исходный размер (а не растягивает). */
+    val transformed: Boolean get() = abs(scale - 1f) > 0.01f
 
     /** Слой с самим видео (без кнопок и субтитров) — его и увеличиваем. */
     private val content: android.view.View?
         get() = playerView.findViewById(androidx.media3.ui.R.id.exo_content_frame)
 
-    private fun applyZoom() {
-        // Кадр не уходит за края: края увеличенного видео не отрываются от краёв экрана
-        tx = tx.coerceIn(width * (1 - scale), 0f)
-        ty = ty.coerceIn(height * (1 - scale), 0f)
-        content?.apply {
+    /** Где кадр видео лежит в этом слое без увеличения (он вписан по центру, а не с левого верхнего угла). */
+    private fun contentOrigin(): Pair<Float, Float> {
+        var v: android.view.View? = content ?: return 0f to 0f
+        var x = 0f
+        var y = 0f
+        while (v != null && v !== this) {
+            x += v.left
+            y += v.top
+            v = v.parent as? android.view.View
+        }
+        return x to y
+    }
+
+    private fun applyZoom(clamp: Boolean = true) {
+        val c = content ?: return
+        val (ox, oy) = contentOrigin()
+        if (clamp) {
+            // Кадр меньше экрана по стороне — он по центру; больше — его края не отрываются от краёв экрана
+            val w = c.width * scale
+            val h = c.height * scale
+            // Уменьшенный кадр (меньше исходного) двигается свободно в пределах плеера — двумя пальцами;
+            // исходного размера и больше: меньше экрана по стороне — по центру, больше — края не отрываются от краёв
+            tx = when {
+                scale < 0.99f -> tx.coerceIn(-ox, width - w - ox)
+                w <= width -> (width - w) / 2f - ox
+                else -> tx.coerceIn(width - w - ox, -ox)
+            }
+            ty = when {
+                scale < 0.99f -> ty.coerceIn(-oy, height - h - oy)
+                h <= height -> (height - h) / 2f - oy
+                else -> ty.coerceIn(height - h - oy, -oy)
+            }
+        }
+        c.apply {
             pivotX = 0f
             pivotY = 0f
             scaleX = scale
@@ -314,7 +347,7 @@ class PlayerGestureLayout(context: Context, val playerView: PlayerView) : FrameL
     /** Двойное нажатие в центре — плавный возврат к исходному размеру. */
     fun resetZoom(animate: Boolean = true) {
         resetAnim?.cancel()
-        if (!animate || !zoomed) {
+        if (!animate || abs(scale - 1f) < 0.01f) {
             scale = 1f; tx = 0f; ty = 0f
             applyZoom()
             return
@@ -323,12 +356,13 @@ class PlayerGestureLayout(context: Context, val playerView: PlayerView) : FrameL
         resetAnim = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
             duration = 240
             interpolator = android.view.animation.DecelerateInterpolator()
+            interpolator = android.view.animation.OvershootInterpolator(0.8f)
             addUpdateListener {
                 val f = it.animatedValue as Float
                 scale = s0 + (1f - s0) * f
                 tx = x0 * (1 - f)
                 ty = y0 * (1 - f)
-                applyZoom()
+                applyZoom(clamp = scale >= 1f)
             }
             start()
         }
@@ -343,16 +377,18 @@ class PlayerGestureLayout(context: Context, val playerView: PlayerView) : FrameL
         }
 
         override fun onScale(d: android.view.ScaleGestureDetector): Boolean {
-            // Усилие — по скорости щипка: быстрый жест увеличивает сильнее, медленный — точнее
-            val f = d.scaleFactor.coerceIn(0.5f, 2f)
+            // Усилие — по скорости щипка, но мягко: быстрый жест чуть сильнее, шаг за событие ограничен
+            val f = d.scaleFactor.coerceIn(0.85f, 1.18f)
             val dt = d.timeDelta.coerceAtLeast(1L) / 1000f
             val speed = abs(kotlin.math.ln(f)) / dt
-            val gain = 1f + (speed * 0.35f).coerceAtMost(2f)
-            val target = (scale * Math.pow(f.toDouble(), gain.toDouble()).toFloat()).coerceIn(1f, MAX_ZOOM)
+            val gain = 1f + (speed * 0.12f).coerceAtMost(0.6f)
+            // Отдаление ниже исходного размера — только пока пальцы на экране (потом кадр возвращается)
+            val target = (scale * Math.pow(f.toDouble(), gain.toDouble()).toFloat()).coerceIn(MIN_PEEK, MAX_ZOOM)
             val k = target / scale
             // Точка между пальцами остаётся на месте, движение пальцев сдвигает кадр
-            tx = d.focusX - (lastFocusX - tx) * k
-            ty = d.focusY - (lastFocusY - ty) * k
+            val (ox, oy) = contentOrigin()
+            tx = d.focusX - ox - (lastFocusX - ox - tx) * k
+            ty = d.focusY - oy - (lastFocusY - oy - ty) * k
             scale = target
             lastFocusX = d.focusX
             lastFocusY = d.focusY
@@ -387,6 +423,19 @@ class PlayerGestureLayout(context: Context, val playerView: PlayerView) : FrameL
             MotionEvent.ACTION_MOVE -> {
                 val dx = ev.x - downX
                 val dy = ev.y - downY
+                // На весь экран в портретной: свайп вбок над серединой — яркость, под серединой — громкость
+                // (верхняя и нижняя полосы с кнопками и перемоткой не задействованы)
+                val inTopBand = downY > height * 0.12f && downY < height * 0.47f
+                val inBottomBand = downY > height * 0.53f && downY < height * 0.86f
+                if (portraitBands && !zoomed && zone == null && (inTopBand || inBottomBand) && abs(dx) > slop && abs(dx) > abs(dy) * 1.5f) {
+                    val z = if (inTopBand) GestureZone.BRIGHTNESS else GestureZone.VOLUME
+                    zone = z
+                    horizontal = true
+                    startLevel = listener?.currentLevel(z) ?: 0f
+                    downX = ev.x
+                    parent?.requestDisallowInterceptTouchEvent(true)
+                    return true
+                }
                 // Портретная страница ролика: свайп вбок — громкость (кроме нижней полосы с перемоткой)
                 val aboveTimeBar = downY < height - 64 * resources.displayMetrics.density
                 if (horizontalVolume && zone == null && aboveTimeBar && abs(dx) > slop && abs(dx) > abs(dy) * 1.5f) {
@@ -450,7 +499,8 @@ class PlayerGestureLayout(context: Context, val playerView: PlayerView) : FrameL
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     pinching = false
                     panning = false
-                    if (scale < 1.03f) resetZoom(animate = true)
+                    // Увеличение и уменьшение остаются (сброс — двойным нажатием в центре); почти исходный — ровно исходный
+                    if (abs(scale - 1f) < 0.03f) resetZoom(animate = true) else applyZoom()
                 }
             }
             return true
@@ -479,8 +529,9 @@ class PlayerGestureLayout(context: Context, val playerView: PlayerView) : FrameL
     }
 }
 
-/** Наибольшее увеличение кадра. */
+/** Наибольшее увеличение кадра и наименьшее отдаление (только пока пальцы на экране). */
 private const val MAX_ZOOM = 10f
+private const val MIN_PEEK = 0.6f
 
 fun Context.findActivity(): Activity? {
     var c: Context? = this
@@ -890,8 +941,9 @@ fun VideoPlayerScreen(
                     }
                     override fun onDoubleTap(e: MotionEvent): Boolean {
                         val fx = e.x / pv.width.coerceAtLeast(1)
-                        // Увеличено — двойное нажатие в центре возвращает исходный размер
-                        if (gestureLayout?.zoomed == true && fx in 0.2f..0.8f) { gestureLayout?.resetZoom(); return true }
+                        // Увеличено или уменьшено — двойное нажатие в центре возвращает исходный размер;
+                        // растягивание на весь экран — только когда кадр в исходном размере
+                        if (gestureLayout?.transformed == true && fx in 0.2f..0.8f) { gestureLayout?.resetZoom(); return true }
                         if (pv.useController) onDoubleTap(fx)
                         return true
                     }
@@ -920,7 +972,9 @@ fun VideoPlayerScreen(
                 layout.playerView.setFullscreenButtonState(if (tablet && ytId != null) !watchPage else landscape)
                 layout.listener = gestureListener
                 layout.gesturesEnabled = !inPip
-                layout.sideZonesEnabled = !watchPage
+                // Яркость и громкость по краям — только в альбомной на весь экран; в портретной — полосами сверху и снизу
+                layout.sideZonesEnabled = !watchPage && landscape
+                layout.portraitBands = !watchPage && !landscape && !inPip
                 layout.horizontalVolume = watchPage && !landscape
                 layout.zoomEnabled = !watchPage && !inPip && nextUp == null
                 val target = navPlayer ?: controller
