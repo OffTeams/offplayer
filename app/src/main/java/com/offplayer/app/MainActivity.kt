@@ -202,8 +202,7 @@ class MainActivity : ComponentActivity() {
         val insets = WindowCompat.getInsetsController(window, window.decorView)
         if (open) {
             videoWasOpen = true
-            insets.hide(WindowInsetsCompat.Type.systemBars())
-            insets.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            applyVideoBars()
             orientationLockedByUser = false
             // Запоминаем ориентацию до открытия видео — после закрытия плеера вернём её
             originalOrientation = resources.configuration.orientation
@@ -219,6 +218,27 @@ class MainActivity : ComponentActivity() {
             resetWindowBrightness()
         }
         updatePipParams()
+    }
+
+    /**
+     * Системные панели при открытом плеере: на весь экран (альбомная ориентация, обычное видео) — скрыты;
+     * страница ролика YouTube в портретной ориентации — строка состояния видна, как в YouTube.
+     */
+    private fun applyVideoBars() {
+        if (!videoOpen) return
+        val insets = WindowCompat.getInsetsController(window, window.decorView)
+        insets.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        val portraitPage = VideoController.watchPage && !inPip &&
+            resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
+        if (portraitPage) {
+            insets.show(WindowInsetsCompat.Type.statusBars())
+            insets.hide(WindowInsetsCompat.Type.navigationBars())
+        } else insets.hide(WindowInsetsCompat.Type.systemBars())
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        applyVideoBars()
     }
 
     /** Включён ли автоповорот экрана в системе (а не заблокирована ориентация). */

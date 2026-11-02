@@ -253,6 +253,8 @@ class PlayerGestureLayout(context: Context, val playerView: PlayerView) : FrameL
 
     var listener: Listener? = null
     var gesturesEnabled = true
+    /** Яркость и громкость свайпами по краям — только на весь экран (не на странице ролика в портретной). */
+    var sideZonesEnabled = true
     /** Любое касание экрана — перезапускает таймер скрытия интерфейса. */
     var onAnyTouch: (() -> Unit)? = null
 
@@ -287,8 +289,8 @@ class PlayerGestureLayout(context: Context, val playerView: PlayerView) : FrameL
                 if (zone == null && !inSystemEdge && abs(dy) > slop && abs(dy) > abs(dx) * 1.5f) {
                     // Края по 20% — яркость и громкость, центральные 60% — свайп сворачивания
                     val z = when {
-                        downX < width * 0.2f -> GestureZone.BRIGHTNESS
-                        downX > width * 0.8f -> GestureZone.VOLUME
+                        sideZonesEnabled && downX < width * 0.2f -> GestureZone.BRIGHTNESS
+                        sideZonesEnabled && downX > width * 0.8f -> GestureZone.VOLUME
                         dy > 0 -> GestureZone.COLLAPSE
                         else -> GestureZone.EXPAND
                     }
@@ -759,6 +761,7 @@ fun VideoPlayerScreen(
                 layout.playerView.setFullscreenButtonState(if (tablet && ytId != null) !watchPage else landscape)
                 layout.listener = gestureListener
                 layout.gesturesEnabled = !inPip
+                layout.sideZonesEnabled = !watchPage
                 val target = navPlayer ?: controller
                 if (layout.playerView.player !== target) {
                     layout.playerView.player = target
@@ -779,6 +782,9 @@ fun VideoPlayerScreen(
                     pv.setExtraAdGroupMarkers(markerTimes, BooleanArray(markerTimes.size))
                 }
                 pv.findViewById<DefaultTimeBar>(androidx.media3.ui.R.id.exo_progress)?.let { tb ->
+                    // Просмотренная часть и бегунок — красные, как в YouTube
+                    tb.setPlayedColor(com.offplayer.app.ui.BrandRed.toArgb())
+                    tb.setScrubberColor(com.offplayer.app.ui.BrandRed.toArgb())
                     tb.setAdMarkerColor(SponsorGreen.toArgb())
                     tb.setPlayedAdMarkerColor(SponsorGreen.copy(alpha = 0.6f).toArgb())
                 }

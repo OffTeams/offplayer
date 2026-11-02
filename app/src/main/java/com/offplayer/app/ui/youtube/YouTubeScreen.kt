@@ -200,6 +200,13 @@ fun YouTubeScreen(active: Boolean, onDownload: (String) -> Unit) {
                     if (target == YtFeed.Home && page.chips.isNotEmpty()) {
                         chips.clear()
                         chips += page.chips
+                    } else if (target == YtFeed.Home && reset) {
+                        // Обновление свайпом берёт следующую страницу — тем в ней нет; берём их с первой
+                        scope.launch {
+                            runCatching { YouTubeApi.load(YtFeed.Home, null).chips }.getOrNull()
+                                ?.takeIf { it.isNotEmpty() && started == epoch[0] }
+                                ?.let { chips.clear(); chips += it }
+                        }
                     }
                     // Новая лента начинается с начала, а не с места, где остановились в старой
                     // Прокрутка — отдельно: у ленты, которая сейчас не на экране (история), прокрутка ждёт

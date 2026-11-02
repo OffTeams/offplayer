@@ -58,8 +58,9 @@ class StreamMediaSourceFactory(context: Context) : MediaSource.Factory {
         // Элемент очереди сохраняет id и название — меняется только адрес загрузки
         fun item(u: String, mime: String? = null, subs: List<MediaItem.SubtitleConfiguration> = emptyList()) =
             mediaItem.buildUpon().setUri(u).setSubtitleConfigurations(subs).apply { if (mime != null) setMimeType(mime) }.build()
-        // Субтитры подключает обычная фабрика — она сама разбирает WebVTT
-        val withSubs = DefaultMediaSourceFactory(chunked)
+        // Субтитры подключает обычная фабрика — она сама разбирает WebVTT. Не загрузившаяся дорожка
+        // (YouTube не отдал перевод) — пустая, а не ошибка: иначе субтитры зависали и не выключались
+        val withSubs = DefaultMediaSourceFactory(SafeSubtitlesDataSource.Factory(chunked))
         return when (uri.host) {
             "merge" -> MergingMediaSource(
                 withSubs.createMediaSource(item(uri.getQueryParameter("v")!!, MimeTypes.VIDEO_MP4, subtitles)),

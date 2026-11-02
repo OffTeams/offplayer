@@ -50,7 +50,8 @@ fun VideoMiniPlayer(state: VideoUiState) {
         title = state.title,
         subtitle = if (state.isPlaying) tr(R.string.video_playing) else tr(R.string.video_paused),
         progress = if (state.durationMs > 0) state.positionMs.toFloat() / state.durationMs else 0f,
-        accent = MaterialTheme.colorScheme.primary,
+        // Полоса воспроизведения видео — красная, как в плеере
+        accent = com.offplayer.app.ui.BrandRed,
         onOpen = VideoController::show,
         art = {
             Box(
