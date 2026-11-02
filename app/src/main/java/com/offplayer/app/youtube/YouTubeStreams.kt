@@ -88,6 +88,33 @@ object YouTubeStreams {
         }
     }
 
+    /** Качество, выбранное в настройках плеера (короткая сторона кадра), — по id ролика. */
+    private val chosen = HashMap<String, Int>()
+
+    fun chosenQuality(youtubeId: String): Int? = synchronized(chosen) { chosen[youtubeId] }
+
+    /** Качества, между которыми можно переключиться (короткая сторона кадра, по убыванию); пусто — выбора нет. */
+    fun qualities(youtubeId: String): List<Int> {
+        val info = info(youtubeId) ?: return emptyList()
+        if (info.streamType == StreamType.LIVE_STREAM || info.streamType == StreamType.AUDIO_LIVE_STREAM) return emptyList()
+        return info.videoOnlyStreams
+            .filter { it.isUrl && it.deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP && it.format == MediaFormat.MPEG_4 }
+            .map { min(it.width, it.height) }
+            .filter { it > 0 }
+            .distinct()
+            .sortedDescending()
+    }
+
+    /** Тот же ролик в другом качестве: потоки берутся из уже полученных сведений, без нового запроса. */
+    suspend fun withQuality(youtubeId: String, side: Int): YtStream = withContext(Dispatchers.IO) {
+        val old = synchronized(cache) { cache[youtubeId]?.second } ?: error("No stream")
+        val r = fromNewPipe(YtVideo(youtubeId, old.title, old.channel, old.channelId, null, "", old.thumbnail.orEmpty()), side)
+        val stream = old.copy(uri = r.uri, width = r.width, height = r.height)
+        synchronized(chosen) { chosen[youtubeId] = side }
+        synchronized(cache) { cache[youtubeId] = System.currentTimeMillis() to stream }
+        stream
+    }
+
     /** Ограничение качества — по короткой стороне кадра, чтобы вертикальные Shorts не играли в низком. */
     private fun maxSide(): Int = AppSettings.videoHeight.value.takeIf { it > 0 } ?: 1080
 
@@ -144,8 +171,9 @@ object YouTubeStreams {
         return p
     }
 
-    private fun fromNewPipe(video: YtVideo): Resolved {
-        val info = NpSource.stream(video.id)
+    /** side — качество, выбранное в плеере: поток именно такой высоты вместо лучшего в пределах настройки. */
+    private fun fromNewPipe(video: YtVideo, side: Int? = null): Resolved {
+        val info = (if (side != null) info(video.id) else null) ?: NpSource.stream(video.id)
         synchronized(infos) { infos[video.id] = info }
         val thumb = video.thumbnail
         // Субтитры: сначала авторские, затем автоматические; включаются кнопкой «CC» во время просмотра
@@ -188,8 +216,9 @@ object YouTubeStreams {
         val limit = maxSide()
         // H.264 в MP4 аппаратно декодируется на любом телефоне
         val video1 = info.videoOnlyStreams
-            .filter { it.isUrl && it.deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP && it.format == MediaFormat.MPEG_4 && min(it.width, it.height) <= limit }
-            .sortedWith(compareByDescending<org.schabi.newpipe.extractor.stream.VideoStream> { it.codec?.startsWith("avc1") == true }
+            .filter { it.isUrl && it.deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP && it.format == MediaFormat.MPEG_4 && min(it.width, it.height) <= (side ?: limit) }
+            .sortedWith(compareByDescending<org.schabi.newpipe.extractor.stream.VideoStream> { side != null && min(it.width, it.height) == side }
+                .thenByDescending { it.codec?.startsWith("avc1") == true }
                 .thenByDescending { min(it.width, it.height) }.thenByDescending { it.fps })
             .firstOrNull()
         // Звук — оригинальная дорожка (а не дубляж), лучшая по битрейту

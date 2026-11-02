@@ -255,7 +255,21 @@ object VideoController {
         watchPage = true
         // Как в YouTube: обычный ролик открывается на весь экран в альбомной ориентации, вертикальный — в портретной
         expectedAspect = if (stream.width > 0 && stream.height > 0) stream.width.toFloat() / stream.height else 16f / 9f
-        val item = MediaItem.Builder()
+        playItems(listOf(streamItem(stream)), 0)
+    }
+
+    /** Смена качества: тот же ролик с другим потоком продолжается с того же места. */
+    fun replaceStream(stream: com.offplayer.app.youtube.YtStream) {
+        val c = _controller.value ?: return
+        val index = c.currentMediaItemIndex
+        val position = c.currentPosition
+        c.replaceMediaItem(index, streamItem(stream))
+        c.seekTo(index, position)
+        c.prepare()
+    }
+
+    private fun streamItem(stream: com.offplayer.app.youtube.YtStream): MediaItem =
+        MediaItem.Builder()
             .setMediaId(stream.playerId.toString())
             .setUri(stream.uri)
             .setRequestMetadata(MediaItem.RequestMetadata.Builder().setMediaUri(stream.uri).build())
@@ -269,8 +283,6 @@ object VideoController {
                     .build()
             )
             .build()
-        playItems(listOf(item), 0)
-    }
 
     /** Видео, открытое из другого приложения («Открыть с помощью»). */
     fun playUri(context: Context, uri: Uri) {

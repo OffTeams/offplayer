@@ -17,8 +17,8 @@ android {
         applicationId = "com.offplayer.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 44
-        versionName = "1.17.1"
+        versionCode = 45
+        versionName = "1.17.2"
 
         // Тестовая сборка: -PtestVersion=1.16.0.1.1 — отдельный пакет, ставится рядом с основным OFFPlayer
         // и не меняет нумерацию релизов. Пакет можно переопределить через -PtestPackage=…

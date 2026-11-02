@@ -73,6 +73,10 @@ import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.material.icons.rounded.PictureInPictureAlt
 import androidx.compose.material3.Switch
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.mutableStateOf
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -416,6 +420,7 @@ fun PlayerSettingsPanel(
                     )
                 }
             }
+            QualitySection(controller)
             // Аудиодорожки (оригинал и дубляж), если в файле их несколько
             val audioGroups = remember(controller) {
                 controller?.currentTracks?.groups?.filter { it.type == C.TRACK_TYPE_AUDIO }.orEmpty()
@@ -478,6 +483,63 @@ fun PlayerSettingsPanel(
                     onClick = onPip,
                 )
             }
+        }
+    }
+}
+
+/**
+ * Качество видео. Ролик YouTube онлайн — выбор из доступных качеств, плеер продолжает с того же места.
+ * Файл на устройстве, нет сети или выбирать не из чего — видно текущее качество, кнопка неактивна.
+ */
+@Composable
+private fun QualitySection(controller: Player?) {
+    val scope = rememberCoroutineScope()
+    val online by com.offplayer.app.data.NetworkState.online.collectAsStateWithLifecycle()
+    val item = controller?.currentMediaItem
+    val youtubeId = remember(item) { item?.mediaId?.toLongOrNull()?.let { com.offplayer.app.youtube.YouTubeStreams.youtubeIdOf(it) } }
+    // Переключать можно только ролик, открытый с YouTube целиком (видео и звук отдельными потоками)
+    val switchable = remember(item) {
+        val u = item?.requestMetadata?.mediaUri
+        u?.scheme == com.offplayer.app.youtube.StreamMediaSourceFactory.SCHEME && u.authority == "merge"
+    }
+    val options = if (online && switchable && youtubeId != null) remember(youtubeId) { com.offplayer.app.youtube.YouTubeStreams.qualities(youtubeId) } else emptyList()
+    val size = controller?.videoSize
+    val playing = size?.let { kotlin.math.min(it.width, it.height) }?.takeIf { it > 0 }
+    var current by remember(youtubeId) { mutableStateOf(youtubeId?.let { com.offplayer.app.youtube.YouTubeStreams.chosenQuality(it) } ?: playing) }
+    var switching by remember { mutableStateOf<Int?>(null) }
+    if (current == null && playing == null) return
+    Text(
+        tr(R.string.video_quality), color = Color.White.copy(alpha = 0.6f), style = MaterialTheme.typography.labelLarge,
+        modifier = Modifier.padding(start = 20.dp, top = 14.dp, bottom = 8.dp),
+    )
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        if (options.size < 2) {
+            // Выбора нет — только текущее качество, неактивно
+            Text(
+                "${current ?: playing}p", color = Color.White.copy(alpha = 0.45f), style = MaterialTheme.typography.labelLarge, maxLines = 1,
+                modifier = Modifier.clip(AppShapes.Pill).background(Color.White.copy(alpha = 0.06f)).padding(horizontal = 14.dp, vertical = 9.dp),
+            )
+        } else options.forEach { side ->
+            val isSel = side == (switching ?: current)
+            Text(
+                "${side}p", color = if (isSel) Color.Black else Color.White, style = MaterialTheme.typography.labelLarge, maxLines = 1,
+                modifier = Modifier
+                    .clip(AppShapes.Pill)
+                    .background(if (isSel) Color.White else Color.White.copy(alpha = 0.1f))
+                    .clickable(enabled = switching == null && side != current) {
+                        val id = youtubeId ?: return@clickable
+                        switching = side
+                        scope.launch {
+                            runCatching { com.offplayer.app.youtube.YouTubeStreams.withQuality(id, side) }
+                                .onSuccess { com.offplayer.app.video.VideoController.replaceStream(it); current = side }
+                            switching = null
+                        }
+                    }
+                    .padding(horizontal = 14.dp, vertical = 9.dp),
+            )
         }
     }
 }
