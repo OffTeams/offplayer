@@ -360,13 +360,15 @@ private fun ShortOverlay(
                     }
                     Text(
                         tr(if (subscribed) R.string.yt_subscribed else R.string.yt_subscribe),
-                        color = if (subscribed) Color.White else Color.Black, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.clip(RoundedCornerShape(16.dp)).background(if (subscribed) Color.White.copy(alpha = 0.25f) else Color.White)
+                        color = if (subscribed) Color.White else Color.Black, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold,
+                        // Всегда в одну строку, компактно
+                        maxLines = 1, softWrap = false,
+                        modifier = Modifier.clip(RoundedCornerShape(14.dp)).background(if (subscribed) Color.White.copy(alpha = 0.25f) else Color.White)
                             .clickable {
                                 val cid = channelId
                                 if (!signedIn || cid == null) needSignIn() else scope.launch { st.toggleSubscribe(cid) }
                             }
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                            .padding(horizontal = 10.dp, vertical = 5.dp),
                     )
                 }
                 if (stream.title.isNotEmpty()) {

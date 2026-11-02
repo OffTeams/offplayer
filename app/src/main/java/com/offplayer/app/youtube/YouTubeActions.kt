@@ -27,6 +27,12 @@ data class YtComment(
     val repliesToken: String? = null,
     /** Параметры ответа на этот комментарий (createReplyParams); null — ответить нельзя. */
     val replyParams: String? = null,
+    /** Действия оценки комментария (performCommentActionEndpoint) и текущая оценка аккаунта: 1, −1 или 0. */
+    val likeAction: String? = null,
+    val unlikeAction: String? = null,
+    val dislikeAction: String? = null,
+    val undislikeAction: String? = null,
+    val myRating: Int = 0,
 )
 
 /** Страница комментариев; total — «38» или «1,2 тыс.»; next — токен продолжения. */
@@ -130,7 +136,15 @@ object YouTubeActions {
 
     fun prefetch(videoId: String) {
         firstPages.computeIfAbsent(videoId) { prefetchScope.async { load(videoId, null) } }
+        // Подписка и оценка — тоже заранее: на странице ролика кнопка «Подписаться» сразу в нужном состоянии
+        if (YouTubeAccount.signedIn.value) states.computeIfAbsent(videoId) { prefetchScope.async { state(videoId) } }
     }
+
+    private val states = java.util.concurrent.ConcurrentHashMap<String, kotlinx.coroutines.Deferred<Pair<YtRating, Boolean?>>>()
+
+    /** Подписка и оценка: подготовленные заранее (если есть), иначе — запрос. */
+    suspend fun stateFast(videoId: String): Pair<YtRating, Boolean?> =
+        states.remove(videoId)?.let { runCatching { it.await() }.getOrNull() } ?: state(videoId)
 
     /** watchParams — параметры ссылки на комментарий: YouTube ставит этот комментарий первым в списке. */
     suspend fun comments(videoId: String, next: String?, watchParams: String? = null): YtComments =
@@ -163,17 +177,24 @@ object YouTubeActions {
         val payloads = LinkedHashMap<String, JSONObject>()
         // Панель действий комментария (там параметры ответа) — по ключу toolbarSurfaceKey
         val toolbars = HashMap<String, String>()
+        val toolbarCmds = HashMap<String, JSONObject>()
+        val likeStates = HashMap<String, String>()
         val mutations = r.optJSONObject("frameworkUpdates")?.optJSONObject("entityBatchUpdate")?.optJSONArray("mutations") ?: JSONArray()
         for (i in 0 until mutations.length()) {
             val m = mutations.optJSONObject(i) ?: continue
             m.optJSONObject("payload")?.optJSONObject("engagementToolbarSurfaceEntityPayload")?.let { t ->
                 findString(t, "createReplyParams")?.let { toolbars[m.optString("entityKey")] = it }
+                toolbarCmds[m.optString("entityKey")] = t
+            }
+            m.optJSONObject("payload")?.optJSONObject("engagementToolbarStateEntityPayload")?.let { s ->
+                likeStates[m.optString("entityKey")] = s.optString("likeState")
             }
             val p = m.optJSONObject("payload")?.optJSONObject("commentEntityPayload") ?: continue
             val id = p.optJSONObject("properties")?.optString("commentId").orEmpty()
             payloads[id.ifEmpty { "#$i" }] = p
         }
         val toolbarOf = HashMap<String, String>() // id комментария → ключ его панели действий
+        val stateOf = HashMap<String, String>() // id комментария → ключ состояния оценки
         val order = ArrayList<Pair<String, String?>>() // id комментария → токен ответов
         var nextToken: String? = null
         val endpoints = r.optJSONArray("onResponseReceivedEndpoints") ?: JSONArray()
@@ -190,6 +211,7 @@ object YouTubeActions {
                     vm != null -> {
                         val id = vm.optString("commentId")
                         vm.optString("toolbarSurfaceKey").takeIf { it.isNotEmpty() }?.let { toolbarOf[id] = it }
+                        vm.optString("toolbarStateKey").takeIf { it.isNotEmpty() }?.let { stateOf[id] = it }
                         val rt = thread?.optJSONObject("replies")?.let { firstToken(it) }
                         if (id.isNotEmpty()) order += id to rt
                     }
@@ -218,10 +240,28 @@ object YouTubeActions {
                 id = id,
                 repliesToken = repliesToken,
                 replyParams = toolbarOf[id]?.let { toolbars[it] },
+                likeAction = toolbarOf[id]?.let { toolbarCmds[it] }?.let { cmd(it, "likeCommand") },
+                unlikeAction = toolbarOf[id]?.let { toolbarCmds[it] }?.let { cmd(it, "unlikeCommand") },
+                dislikeAction = toolbarOf[id]?.let { toolbarCmds[it] }?.let { cmd(it, "dislikeCommand") },
+                undislikeAction = toolbarOf[id]?.let { toolbarCmds[it] }?.let { cmd(it, "undislikeCommand") },
+                myRating = when (stateOf[id]?.let { likeStates[it] }) {
+                    "TOOLBAR_LIKE_STATE_LIKED" -> 1
+                    "TOOLBAR_LIKE_STATE_DISLIKED" -> -1
+                    else -> 0
+                },
             )
         }
         for ((id, _) in ids) byId[id]?.let { items += it }
         return YtComments(items, null, nextToken ?: if (order.isEmpty()) lastContinuation(r) else null, byId)
+    }
+
+    /** Действие оценки из панели комментария: …Command → performCommentActionEndpoint.action. */
+    private fun cmd(toolbar: JSONObject, key: String): String? =
+        toolbar.optJSONObject(key)?.let { findString(it, "action") }
+
+    /** Оценить комментарий (лайк, дизлайк или снять оценку) от имени аккаунта. */
+    suspend fun rateComment(action: String) = withContext(Dispatchers.IO) {
+        YouTubeApi.authPost("comment/perform_comment_action", JSONObject().put("actions", JSONArray().put(action)))
     }
 
     /** Первый токен продолжения внутри узла. */

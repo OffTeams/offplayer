@@ -958,10 +958,11 @@ fun VideoPlayerScreen(
                 exit = fadeOut(),
                 modifier = Modifier
                     .align(Alignment.BottomStart)
-                    .padding(start = startDp + 8.dp, bottom = 112.dp + bottomInset),
+                    // Левый нижний угол области видео — там, где обычно время ролика
+                    .padding(start = startDp + 10.dp, bottom = (if (watchPage) 10.dp else 18.dp) + bottomInset),
             ) {
                 skipNotice?.let { seg ->
-                    SkippedNotice(seg, onUndo = {
+                    SkippedNotice(seg, compact = watchPage && !landscape, onUndo = {
                         VideoController.undoSkip(seg)
                         skipNotice = null
                     })

@@ -945,7 +945,7 @@ private fun VideoRow(v: YtVideo, opening: Boolean, onClick: () -> Unit, onDownlo
                 }
             }
             Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                Text(v.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                Text(v.title, style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 19.sp, letterSpacing = 0.1.sp), fontWeight = FontWeight.Medium, maxLines = 3, overflow = TextOverflow.Ellipsis)
                 if (v.channel.isNotEmpty()) Text(v.channel, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (v.meta.isNotEmpty()) Text(v.meta, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
@@ -995,10 +995,11 @@ internal fun VideoCard(v: YtVideo, opening: Boolean, onClick: () -> Unit, onDown
             // Аватар канала слева от названия; нажатие открывает канал
             Avatar(v.avatar, 36.dp, Modifier.padding(end = 12.dp).then(if (onChannel != null) Modifier.clickable(onClick = onChannel) else Modifier))
             Column(Modifier.weight(1f)) {
-                Text(v.title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                // Плотные строки, как в YouTube: межстрочный интервал темы для заголовков слишком большой
+                Text(v.title, style = MaterialTheme.typography.bodyLarge.copy(lineHeight = 21.sp, letterSpacing = 0.1.sp), fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 val sub = listOf(v.channel, v.meta).filter { it.isNotEmpty() }.joinToString(" • ")
                 if (sub.isNotEmpty()) {
-                    Text(sub, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(sub, style = MaterialTheme.typography.bodySmall.copy(lineHeight = 16.sp), color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
             }
             Box {

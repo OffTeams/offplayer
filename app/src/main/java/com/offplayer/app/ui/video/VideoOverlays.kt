@@ -578,27 +578,21 @@ private val PanelSurface = Color(0xFF141414)
 
 /** Плашка после автопропуска: «Пропущено: Спонсор · Вернуть». */
 @Composable
-fun SkippedNotice(segment: SponsorSegment, onUndo: () -> Unit, modifier: Modifier = Modifier) {
+fun SkippedNotice(segment: SponsorSegment, onUndo: () -> Unit, modifier: Modifier = Modifier, compact: Boolean = false) {
+    // Только «Вернуть» с зелёной точкой SponsorBlock; что пропущено — в описании для TalkBack
     Row(
         modifier
             .background(PanelColor, AppShapes.Pill)
-            .padding(start = 14.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+            .clip(AppShapes.Pill)
+            .clickable(onClickLabel = tr(R.string.sb_skipped, SponsorBlock.label(segment.category)), onClick = onUndo)
+            .padding(horizontal = if (compact) 10.dp else 12.dp, vertical = if (compact) 5.dp else 7.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Box(Modifier.size(8.dp).background(SponsorGreen, AppShapes.Pill))
-        Text(tr(R.string.sb_skipped, SponsorBlock.label(segment.category)), color = Color.White, style = MaterialTheme.typography.labelLarge)
-        Row(
-            Modifier
-                .background(Color.White.copy(alpha = 0.12f), AppShapes.Pill)
-                .clickable(onClick = onUndo)
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(Icons.Rounded.Replay, null, tint = Color.White, modifier = Modifier.size(16.dp))
-            Spacer(Modifier.width(4.dp))
-            Text(tr(R.string.sb_undo), color = Color.White, style = MaterialTheme.typography.labelLarge)
-        }
+        Box(Modifier.size(if (compact) 6.dp else 7.dp).background(SponsorGreen, AppShapes.Pill))
+        Spacer(Modifier.width(if (compact) 6.dp else 8.dp))
+        Icon(Icons.Rounded.Replay, null, tint = Color.White, modifier = Modifier.size(if (compact) 13.dp else 15.dp))
+        Spacer(Modifier.width(4.dp))
+        Text(tr(R.string.sb_undo), color = Color.White, style = if (compact) MaterialTheme.typography.labelMedium else MaterialTheme.typography.labelLarge)
     }
 }
 

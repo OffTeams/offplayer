@@ -223,7 +223,7 @@ class RatingState(private val youtubeId: String) {
 
     suspend fun load() {
         if (!YouTubeAccount.signedIn.value) return
-        runCatching { YouTubeActions.state(youtubeId) }.onSuccess { (r, s) ->
+        runCatching { YouTubeActions.stateFast(youtubeId) }.onSuccess { (r, s) ->
             rating = r
             if (s != null) subscribed = s
         }
@@ -285,7 +285,7 @@ fun WatchPage(youtubeId: String, modifier: Modifier = Modifier, contentPadding: 
         } else {
             item {
                 Column(Modifier.fillMaxWidth().clickable { sheet = 1 }.padding(start = 12.dp, end = 12.dp, top = 12.dp)) {
-                    Text(i.name, style = typo.titleLarge.copy(fontSize = 19.sp), fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(i.name, style = typo.titleLarge.copy(fontSize = 19.sp, lineHeight = 24.sp), fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     val meta = listOfNotNull(
                         "@" + (i.uploaderName ?: "").removePrefix("@").replace(" ", ""),
                         i.viewCount.takeIf { it >= 0 }?.let { NpSource.viewsText(it) },
@@ -698,12 +698,37 @@ private fun CommentRow(c: YtComment, avatarSize: androidx.compose.ui.unit.Dp = 3
         Column(Modifier.padding(start = 12.dp).weight(1f)) {
             Text(listOf(c.author, c.date).filter { it.isNotEmpty() }.joinToString(" • "), color = muted, style = typo.labelMedium, maxLines = 1)
             Text(linkified(plain(c.text)), style = typo.bodyMedium, modifier = Modifier.padding(top = 2.dp))
-            Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Outlined.ThumbUp, null, tint = muted, modifier = Modifier.size(16.dp))
-                    if (c.likes.isNotEmpty()) Text(c.likes, color = muted, fontSize = 12.sp, modifier = Modifier.padding(start = 6.dp))
+            // Лайк и дизлайк комментария — от имени аккаунта; при ошибке оценка возвращается
+            val context = LocalContext.current
+            val scope = rememberCoroutineScope()
+            var rating by remember(c.id) { mutableStateOf(c.myRating) }
+            fun rate(target: Int) {
+                if (!YouTubeAccount.signedIn.value) { needSignIn(context); return }
+                val old = rating
+                val new = if (rating == target) 0 else target
+                val action = when {
+                    new == 1 -> c.likeAction
+                    new == -1 -> c.dislikeAction
+                    old == 1 -> c.unlikeAction
+                    else -> c.undislikeAction
+                } ?: return
+                rating = new
+                scope.launch { runCatching { YouTubeActions.rateComment(action) }.onFailure { rating = old } }
+            }
+            val likes = c.likes.toIntOrNull()?.let { n ->
+                val base = n - (if (c.myRating == 1) 1 else 0)
+                (base + if (rating == 1) 1 else 0).takeIf { it > 0 }?.toString().orEmpty()
+            } ?: c.likes
+            Row(Modifier.padding(top = 2.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.clip(RoundedCornerShape(14.dp)).clickable { rate(1) }.padding(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(if (rating == 1) Icons.Rounded.ThumbUp else Icons.Outlined.ThumbUp, tr(R.string.yt_like),
+                        tint = if (rating == 1) MaterialTheme.colorScheme.onSurface else muted, modifier = Modifier.size(16.dp))
+                    if (likes.isNotEmpty()) Text(likes, color = muted, fontSize = 12.sp, modifier = Modifier.padding(start = 6.dp))
                 }
-                Icon(Icons.Outlined.ThumbDown, null, tint = muted, modifier = Modifier.size(16.dp))
+                Box(Modifier.clip(RoundedCornerShape(14.dp)).clickable { rate(-1) }.padding(6.dp)) {
+                    Icon(if (rating == -1) Icons.Rounded.ThumbDown else Icons.Outlined.ThumbDown, tr(R.string.yt_dislike),
+                        tint = if (rating == -1) MaterialTheme.colorScheme.onSurface else muted, modifier = Modifier.size(16.dp))
+                }
                 // Ответить: открывает ветку и поле ответа
                 Icon(Icons.AutoMirrored.Outlined.Comment, tr(R.string.yt_reply), tint = muted,
                     modifier = Modifier.size(16.dp).then(if (onReply != null) Modifier.clickable(onClick = onReply) else Modifier))
