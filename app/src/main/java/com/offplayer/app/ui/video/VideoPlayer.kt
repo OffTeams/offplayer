@@ -255,6 +255,9 @@ class PlayerGestureLayout(context: Context, val playerView: PlayerView) : FrameL
     var gesturesEnabled = true
     /** Яркость и громкость свайпами по краям — только на весь экран (не на странице ролика в портретной). */
     var sideZonesEnabled = true
+    /** Страница ролика в портретной: громкость — горизонтальным свайпом по видео (вправо громче). */
+    var horizontalVolume = false
+    private var horizontal = false
     /** Любое касание экрана — перезапускает таймер скрытия интерфейса. */
     var onAnyTouch: (() -> Unit)? = null
 
@@ -269,6 +272,95 @@ class PlayerGestureLayout(context: Context, val playerView: PlayerView) : FrameL
     private var zone: GestureZone? = null
     private var startLevel = 0f
 
+    // ---- Зум на весь экран: щипок до ×10 в любую точку кадра ----
+
+    /** Зум доступен только на весь экран (не на странице ролика и не в «картинке в картинке»). */
+    var zoomEnabled = false
+        set(v) {
+            if (field != v) { field = v; if (!v) resetZoom(animate = false) }
+        }
+    private var scale = 1f
+    private var tx = 0f
+    private var ty = 0f
+    private var pinching = false
+    private var panning = false
+    private var lastX = 0f
+    private var lastY = 0f
+    private var lastFocusX = 0f
+    private var lastFocusY = 0f
+    private var resetAnim: android.animation.ValueAnimator? = null
+
+    /** Кадр увеличен — свайпы двигают его, а не меняют яркость, громкость и не сворачивают плеер. */
+    val zoomed: Boolean get() = scale > 1.01f
+
+    /** Слой с самим видео (без кнопок и субтитров) — его и увеличиваем. */
+    private val content: android.view.View?
+        get() = playerView.findViewById(androidx.media3.ui.R.id.exo_content_frame)
+
+    private fun applyZoom() {
+        // Кадр не уходит за края: края увеличенного видео не отрываются от краёв экрана
+        tx = tx.coerceIn(width * (1 - scale), 0f)
+        ty = ty.coerceIn(height * (1 - scale), 0f)
+        content?.apply {
+            pivotX = 0f
+            pivotY = 0f
+            scaleX = scale
+            scaleY = scale
+            translationX = tx
+            translationY = ty
+        }
+    }
+
+    /** Двойное нажатие в центре — плавный возврат к исходному размеру. */
+    fun resetZoom(animate: Boolean = true) {
+        resetAnim?.cancel()
+        if (!animate || !zoomed) {
+            scale = 1f; tx = 0f; ty = 0f
+            applyZoom()
+            return
+        }
+        val s0 = scale; val x0 = tx; val y0 = ty
+        resetAnim = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 240
+            interpolator = android.view.animation.DecelerateInterpolator()
+            addUpdateListener {
+                val f = it.animatedValue as Float
+                scale = s0 + (1f - s0) * f
+                tx = x0 * (1 - f)
+                ty = y0 * (1 - f)
+                applyZoom()
+            }
+            start()
+        }
+    }
+
+    private val scaleDetector = android.view.ScaleGestureDetector(context, object : android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() {
+        override fun onScaleBegin(d: android.view.ScaleGestureDetector): Boolean {
+            resetAnim?.cancel()
+            lastFocusX = d.focusX
+            lastFocusY = d.focusY
+            return true
+        }
+
+        override fun onScale(d: android.view.ScaleGestureDetector): Boolean {
+            // Усилие — по скорости щипка: быстрый жест увеличивает сильнее, медленный — точнее
+            val f = d.scaleFactor.coerceIn(0.5f, 2f)
+            val dt = d.timeDelta.coerceAtLeast(1L) / 1000f
+            val speed = abs(kotlin.math.ln(f)) / dt
+            val gain = 1f + (speed * 0.35f).coerceAtMost(2f)
+            val target = (scale * Math.pow(f.toDouble(), gain.toDouble()).toFloat()).coerceIn(1f, MAX_ZOOM)
+            val k = target / scale
+            // Точка между пальцами остаётся на месте, движение пальцев сдвигает кадр
+            tx = d.focusX - (lastFocusX - tx) * k
+            ty = d.focusY - (lastFocusY - ty) * k
+            scale = target
+            lastFocusX = d.focusX
+            lastFocusY = d.focusY
+            applyZoom()
+            return true
+        }
+    })
+
     init {
         addView(playerView, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     }
@@ -279,11 +371,40 @@ class PlayerGestureLayout(context: Context, val playerView: PlayerView) : FrameL
             MotionEvent.ACTION_DOWN -> {
                 downX = ev.x
                 downY = ev.y
+                lastX = ev.x
+                lastY = ev.y
                 zone = null
+                pinching = false
+                panning = false
+            }
+            // Второй палец — щипок, зум (только на весь экран)
+            MotionEvent.ACTION_POINTER_DOWN -> if (zoomEnabled && zone == null) {
+                pinching = true
+                scaleDetector.onTouchEvent(ev)
+                parent?.requestDisallowInterceptTouchEvent(true)
+                return true
             }
             MotionEvent.ACTION_MOVE -> {
                 val dx = ev.x - downX
                 val dy = ev.y - downY
+                // Портретная страница ролика: свайп вбок — громкость (кроме нижней полосы с перемоткой)
+                val aboveTimeBar = downY < height - 64 * resources.displayMetrics.density
+                if (horizontalVolume && zone == null && aboveTimeBar && abs(dx) > slop && abs(dx) > abs(dy) * 1.5f) {
+                    zone = GestureZone.VOLUME
+                    horizontal = true
+                    startLevel = listener?.currentLevel(GestureZone.VOLUME) ?: 0f
+                    downX = ev.x // отсчёт от момента захвата — без скачка
+                    parent?.requestDisallowInterceptTouchEvent(true)
+                    return true
+                }
+                // Кадр увеличен — палец двигает его по экрану
+                if (zoomed && zone == null && (abs(dx) > slop || abs(dy) > slop)) {
+                    panning = true
+                    lastX = ev.x
+                    lastY = ev.y
+                    parent?.requestDisallowInterceptTouchEvent(true)
+                    return true
+                }
                 // Края сверху/снизу оставляем системным жестам
                 val inSystemEdge = downY < height * 0.07f || downY > height * 0.93f
                 if (zone == null && !inSystemEdge && abs(dy) > slop && abs(dy) > abs(dx) * 1.5f) {
@@ -295,6 +416,7 @@ class PlayerGestureLayout(context: Context, val playerView: PlayerView) : FrameL
                         else -> GestureZone.EXPAND
                     }
                     zone = z
+                    horizontal = false
                     startLevel = listener?.currentLevel(z) ?: 0f
                     downY = ev.y // отсчёт от момента захвата — без скачка
                     parent?.requestDisallowInterceptTouchEvent(true)
@@ -307,13 +429,43 @@ class PlayerGestureLayout(context: Context, val playerView: PlayerView) : FrameL
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(ev: MotionEvent): Boolean {
+        if (pinching || panning) {
+            if (pinching) scaleDetector.onTouchEvent(ev)
+            when (ev.actionMasked) {
+                MotionEvent.ACTION_MOVE -> if (panning && !pinching) {
+                    tx += ev.x - lastX
+                    ty += ev.y - lastY
+                    applyZoom()
+                    lastX = ev.x
+                    lastY = ev.y
+                }
+                // Один палец убрали после щипка — дальше этот жест двигает кадр
+                MotionEvent.ACTION_POINTER_UP -> if (pinching && ev.pointerCount == 2) {
+                    pinching = false
+                    panning = zoomed
+                    val keep = if (ev.actionIndex == 0) 1 else 0
+                    lastX = ev.getX(keep)
+                    lastY = ev.getY(keep)
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    pinching = false
+                    panning = false
+                    if (scale < 1.03f) resetZoom(animate = true)
+                }
+            }
+            return true
+        }
         val z = zone ?: return super.onTouchEvent(ev)
         val dy = ev.y - downY
         when (ev.actionMasked) {
             MotionEvent.ACTION_MOVE -> when (z) {
                 GestureZone.COLLAPSE -> listener?.onCollapseDrag(dy.coerceAtLeast(0f))
                 GestureZone.EXPAND -> Unit
-                else -> listener?.onLevel(z, (startLevel - dy / (height * 0.65f)).coerceIn(0f, 1f))
+                else -> listener?.onLevel(
+                    z,
+                    if (horizontal) (startLevel + (ev.x - downX) / (width * 0.8f)).coerceIn(0f, 1f)
+                    else (startLevel - dy / (height * 0.65f)).coerceIn(0f, 1f),
+                )
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 val up = ev.actionMasked == MotionEvent.ACTION_UP
@@ -326,6 +478,9 @@ class PlayerGestureLayout(context: Context, val playerView: PlayerView) : FrameL
         return true
     }
 }
+
+/** Наибольшее увеличение кадра. */
+private const val MAX_ZOOM = 10f
 
 fun Context.findActivity(): Activity? {
     var c: Context? = this
@@ -726,6 +881,7 @@ fun VideoPlayerScreen(
                 }
                 // Одиночное нажатие показывает/скрывает интерфейс, двойное — перемотка или заполнение экрана.
                 // Срабатывает только на «пустом» месте: кнопки панели получают нажатия сами.
+                var gestureLayout: PlayerGestureLayout? = null
                 val detector = GestureDetector(ctx, object : GestureDetector.SimpleOnGestureListener() {
                     override fun onDown(e: MotionEvent) = true
                     override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
@@ -733,7 +889,10 @@ fun VideoPlayerScreen(
                         return true
                     }
                     override fun onDoubleTap(e: MotionEvent): Boolean {
-                        if (pv.useController) onDoubleTap(e.x / pv.width.coerceAtLeast(1))
+                        val fx = e.x / pv.width.coerceAtLeast(1)
+                        // Увеличено — двойное нажатие в центре возвращает исходный размер
+                        if (gestureLayout?.zoomed == true && fx in 0.2f..0.8f) { gestureLayout?.resetZoom(); return true }
+                        if (pv.useController) onDoubleTap(fx)
                         return true
                     }
                 })
@@ -754,7 +913,7 @@ fun VideoPlayerScreen(
                         ignore
                     }
                 }
-                PlayerGestureLayout(ctx, pv).apply { onAnyTouch = { touchTick++ } }
+                PlayerGestureLayout(ctx, pv).apply { onAnyTouch = { touchTick++ }; gestureLayout = this }
             },
             update = { layout ->
                 // Значок кнопки: «развернуть» в портретной ориентации, «свернуть» в альбомной
@@ -762,6 +921,8 @@ fun VideoPlayerScreen(
                 layout.listener = gestureListener
                 layout.gesturesEnabled = !inPip
                 layout.sideZonesEnabled = !watchPage
+                layout.horizontalVolume = watchPage && !landscape
+                layout.zoomEnabled = !watchPage && !inPip && nextUp == null
                 val target = navPlayer ?: controller
                 if (layout.playerView.player !== target) {
                     layout.playerView.player = target
