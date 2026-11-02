@@ -413,7 +413,7 @@
     <string name="upd_tap_to_check">탭하여 확인</string>
     <string name="upd_check">업데이트 확인</string>
     <string name="upd_auto">자동으로 확인</string>
-    <string name="upd_auto_desc">실행 시 12시간마다 — GitHub의 새 버전</string>
+    <string name="upd_auto_desc">실행할 때마다 — GitHub의 새 버전</string>
     <string name="device_no_permission">미디어 파일 접근 권한이 없으면 기기 콘텐츠를 사용할 수 없습니다</string>
     <string name="device_content">기기 저장공간의 콘텐츠</string>
     <string name="device_content_desc">OFFPlayer로 다운로드한 것뿐 아니라 내 오디오와 동영상도 재생</string>

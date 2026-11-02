@@ -413,7 +413,7 @@
     <string name="upd_tap_to_check">Tap to check</string>
     <string name="upd_check">Check for updates</string>
     <string name="upd_auto">Check automatically</string>
-    <string name="upd_auto_desc">Every 12 hours at launch — new versions from GitHub</string>
+    <string name="upd_auto_desc">After every launch — new versions from GitHub</string>
     <string name="device_no_permission">Device content isn\'t available without access to media files</string>
     <string name="device_content">Content from device storage</string>
     <string name="device_content_desc">Play your own audio and videos, not only what you downloaded with OFFPlayer</string>

@@ -36,7 +36,7 @@ fun UpdateDialogHost() {
     val context = LocalContext.current
     val prompt by AppUpdater.prompt.collectAsStateWithLifecycle()
     val state by AppUpdater.state.collectAsStateWithLifecycle()
-    LaunchedEffect(Unit) { AppUpdater.checkIfDue(context) }
+    LaunchedEffect(Unit) { AppUpdater.checkAfterLaunch(context) }
     if (!prompt) return
 
     val info = when (val s = state) {

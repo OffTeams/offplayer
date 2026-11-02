@@ -413,7 +413,7 @@
     <string name="upd_tap_to_check">Toca para comprobar</string>
     <string name="upd_check">Buscar actualizaciones</string>
     <string name="upd_auto">Comprobar automáticamente</string>
-    <string name="upd_auto_desc">Cada 12 horas al iniciar: nuevas versiones desde GitHub</string>
+    <string name="upd_auto_desc">Después de cada inicio: nuevas versiones desde GitHub</string>
     <string name="device_no_permission">Sin acceso a los archivos multimedia, el contenido del dispositivo no está disponible</string>
     <string name="device_content">Contenido del almacenamiento del dispositivo</string>
     <string name="device_content_desc">Reproduce tus propios audios y vídeos, no solo lo descargado con OFFPlayer</string>

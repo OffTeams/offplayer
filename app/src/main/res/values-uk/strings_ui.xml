@@ -413,7 +413,7 @@
     <string name="upd_tap_to_check">Натисніть, щоб перевірити</string>
     <string name="upd_check">Перевірити оновлення</string>
     <string name="upd_auto">Перевіряти автоматично</string>
-    <string name="upd_auto_desc">Раз на 12 годин під час запуску — нові версії з GitHub</string>
+    <string name="upd_auto_desc">Після кожного запуску — нові версії з GitHub</string>
     <string name="device_no_permission">Без доступу до медіафайлів вміст пристрою недоступний</string>
     <string name="device_content">Вміст із пам\'яті пристрою</string>
     <string name="device_content_desc">Слухати й дивитися власні аудіо та відео, а не лише завантажене через OFFPlayer</string>

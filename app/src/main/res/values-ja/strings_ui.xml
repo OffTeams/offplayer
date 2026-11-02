@@ -413,7 +413,7 @@
     <string name="upd_tap_to_check">タップして確認</string>
     <string name="upd_check">アップデートを確認</string>
     <string name="upd_auto">自動で確認</string>
-    <string name="upd_auto_desc">起動時に12時間ごと（GitHub の新バージョン）</string>
+    <string name="upd_auto_desc">起動のたびに（GitHub の新バージョン）</string>
     <string name="device_no_permission">メディアファイルへのアクセスがないと端末内のコンテンツは使えません</string>
     <string name="device_content">端末ストレージのコンテンツ</string>
     <string name="device_content_desc">OFFPlayer でダウンロードしたものだけでなく、手持ちの音声や動画も再生</string>

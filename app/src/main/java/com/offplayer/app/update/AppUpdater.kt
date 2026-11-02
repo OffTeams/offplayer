@@ -61,9 +61,9 @@ object AppUpdater {
     private const val REPO = "OffTeams/offplayer-updates"
     private const val PREFS = "app_updater"
     private const val KEY_LAST_CHECK = "last_check"
-    private const val KEY_SKIPPED = "skipped_version"
     private const val KEY_AUTO = "auto_check"
-    private const val CHECK_INTERVAL_MS = 12 * 60 * 60_000L
+    /** Пауза после запуска: сначала открывается приложение, потом идёт проверка. */
+    private const val LAUNCH_DELAY_MS = 3_000L
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var job: Job? = null
@@ -90,13 +90,17 @@ object AppUpdater {
     fun currentVersion(context: Context): String =
         runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull() ?: "0"
 
-    /** Автоматическая проверка при запуске: не чаще раза в 12 часов, пропущенную версию не предлагаем. */
-    fun checkIfDue(context: Context) {
+    /** Проверка после каждого запуска приложения — один раз за запуск, через несколько секунд после открытия. */
+    private var launchChecked = false
+
+    fun checkAfterLaunch(context: Context) {
         val app = context.applicationContext
-        if (!_autoCheck.value) return
-        val last = prefs(app).getLong(KEY_LAST_CHECK, 0)
-        if (System.currentTimeMillis() - last < CHECK_INTERVAL_MS) return
-        check(app, manual = false)
+        if (!_autoCheck.value || launchChecked) return
+        launchChecked = true
+        scope.launch {
+            kotlinx.coroutines.delay(LAUNCH_DELAY_MS)
+            check(app, manual = false)
+        }
     }
 
     fun check(context: Context, manual: Boolean = true) {
@@ -115,19 +119,16 @@ object AppUpdater {
                 !newer -> _state.value = if (manual) UpdateState.UpToDate else UpdateState.Idle
                 else -> {
                     _state.value = UpdateState.Available(info!!)
-                    val skipped = prefs(app).getString(KEY_SKIPPED, null)
-                    if (manual || skipped != info.version) _prompt.value = true
+                    _prompt.value = true
                 }
             }
         }
     }
 
-    /** «Позже»: окно закрывается, эта версия больше сама не предлагается (в настройках остаётся). */
+    /** «Позже»: окно закрывается до следующего запуска (в настройках обновление остаётся доступным). */
+    @Suppress("UNUSED_PARAMETER")
     fun dismissPrompt(context: Context) {
         _prompt.value = false
-        (_state.value as? UpdateState.Available)?.let {
-            prefs(context).edit().putString(KEY_SKIPPED, it.info.version).apply()
-        }
     }
 
     fun showPrompt() {

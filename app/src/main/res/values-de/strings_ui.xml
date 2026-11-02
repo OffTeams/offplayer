@@ -413,7 +413,7 @@
     <string name="upd_tap_to_check">Tippen zum Prüfen</string>
     <string name="upd_check">Nach Updates suchen</string>
     <string name="upd_auto">Automatisch prüfen</string>
-    <string name="upd_auto_desc">Alle 12 Stunden beim Start – neue Versionen von GitHub</string>
+    <string name="upd_auto_desc">Nach jedem Start – neue Versionen von GitHub</string>
     <string name="device_no_permission">Ohne Zugriff auf Mediendateien sind Geräteinhalte nicht verfügbar</string>
     <string name="device_content">Inhalte aus dem Gerätespeicher</string>
     <string name="device_content_desc">Eigene Audios und Videos abspielen, nicht nur mit OFFPlayer Heruntergeladenes</string>
