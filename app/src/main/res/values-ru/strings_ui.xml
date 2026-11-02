@@ -18,7 +18,7 @@
     <string name="selected">Выбран</string>
     <string name="more">Ещё</string>
     <string name="pip_unsupported">Устройство не поддерживает «картинку в картинке»</string>
-    <string name="share_unsupported">Поддерживаются ссылки YouTube и YouTube Music</string>
+    <string name="share_unsupported">Поддерживаются ссылки YouTube, YouTube Music и TikTok</string>
     <string name="device_storage">Память устройства</string>
     <string name="unknown_album">Без альбома</string>
     <string name="unknown_artist">Неизвестный исполнитель</string>
@@ -148,7 +148,7 @@
     <string name="quality_best">Лучшее</string>
     <string name="action_clear">Очистить</string>
     <string name="settings">Настройки</string>
-    <string name="link_hint">Ссылка на YouTube или YouTube Music</string>
+    <string name="link_hint">Ссылка на YouTube, YouTube Music или TikTok</string>
     <string name="clipboard_empty">Буфер обмена пуст</string>
     <string name="action_paste">Вставить</string>
     <string name="link_unsupported">Поддерживаются ссылки youtube.com, youtu.be и music.youtube.com</string>

@@ -66,6 +66,11 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.Lyrics
+import androidx.compose.material.icons.rounded.Videocam
+import androidx.compose.material.icons.rounded.VideocamOff
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Repeat
@@ -165,7 +170,14 @@ import kotlin.math.sin
 fun MiniPlayer(state: PlayerUiState, onExpand: () -> Unit) {
     val tracks by MediaRepository.tracks.collectAsStateWithLifecycle()
     val track = remember(state.trackId, tracks) { state.trackId?.let { MediaRepository.track(it) } }
-    val colors = rememberArtColors(track?.uri)
+    val artColors = rememberArtColors(track?.uri)
+    // Видео вместо обложки: если у трека есть ролик на YouTube и есть интернет; цвета фона — по кадру
+    val musicVideo by AppSettings.musicVideo.collectAsStateWithLifecycle()
+    val netOnline by com.offplayer.app.data.NetworkState.online.collectAsStateWithLifecycle()
+    val videoId = remember(track?.id) { track?.let { com.offplayer.app.youtube.YtLyrics.videoIdOf(it) } }
+    val videoOn = musicVideo && videoId != null && netOnline
+    var frameColors by remember(track?.id) { mutableStateOf<ArtColors?>(null) }
+    val colors = if (videoOn) frameColors ?: artColors else artColors
     val accent = colors.palette(LocalDarkTheme.current).accent
     com.offplayer.app.ui.MiniBar(
         title = state.title,
@@ -197,7 +209,14 @@ fun NowPlayingScreen(state: PlayerUiState, onCollapse: () -> Unit, onStop: () ->
     val context = LocalContext.current
     val tracks by MediaRepository.tracks.collectAsStateWithLifecycle()
     val track = remember(state.trackId, tracks) { state.trackId?.let { MediaRepository.track(it) } }
-    val colors = rememberArtColors(track?.uri)
+    val artColors = rememberArtColors(track?.uri)
+    // Видео вместо обложки: если у трека есть ролик на YouTube и есть интернет; цвета фона — по кадру
+    val musicVideo by AppSettings.musicVideo.collectAsStateWithLifecycle()
+    val netOnline by com.offplayer.app.data.NetworkState.online.collectAsStateWithLifecycle()
+    val videoId = remember(track?.id) { track?.let { com.offplayer.app.youtube.YtLyrics.videoIdOf(it) } }
+    val videoOn = musicVideo && videoId != null && netOnline
+    var frameColors by remember(track?.id) { mutableStateOf<ArtColors?>(null) }
+    val colors = if (videoOn) frameColors ?: artColors else artColors
     // Градиент из цветов обложки, уходящий в чёрный (тёмная тема) или белый (светлая)
     val pal = colors.palette(LocalDarkTheme.current)
     val showSleep by AppSettings.showSleepTimer.collectAsStateWithLifecycle()
@@ -210,6 +229,20 @@ fun NowPlayingScreen(state: PlayerUiState, onCollapse: () -> Unit, onStop: () ->
     // Очередь под плеером можно свернуть нажатием на «Очередь • N»
     var queueOpen by remember { mutableStateOf(true) }
     val queueArrow by animateFloatAsState(if (queueOpen) 0f else -90f, label = "queueArrow")
+    // Вкладки под плеером: «Очередь» (открыта по умолчанию) и «Текст» — если песня есть на YouTube Music
+    var lyricsTab by remember { mutableStateOf(false) }
+    val online by com.offplayer.app.data.NetworkState.online.collectAsStateWithLifecycle()
+    val lyrics by androidx.compose.runtime.produceState<com.offplayer.app.youtube.Lyrics?>(null, track?.id, online) {
+        value = null
+        value = if (online && track != null) runCatching { com.offplayer.app.youtube.YtLyrics.forTrack(track) }.getOrNull() else null
+    }
+    LaunchedEffect(lyrics) { if (lyrics == null) lyricsTab = false }
+    // Строка, которую поют сейчас, — как в YouTube Music
+    val activeLine = lyrics?.takeIf { it.synced }?.lines?.indexOfLast { (it.startMs ?: Long.MAX_VALUE) <= state.positionMs } ?: -1
+    val centerOffset = with(LocalDensity.current) { (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp / 3).roundToPx() }
+    LaunchedEffect(activeLine, lyricsTab, queueOpen) {
+        if (lyricsTab && queueOpen && activeLine >= 0 && !listState.isScrollInProgress) listState.animateScrollToItem(1 + activeLine, -centerOffset)
+    }
     val collapseThreshold = with(LocalDensity.current) { 140.dp.toPx() }
     val duration = state.durationMs.coerceAtLeast(1)
     val progress = (state.positionMs.toFloat() / duration).coerceIn(0f, 1f)
@@ -297,6 +330,10 @@ fun NowPlayingScreen(state: PlayerUiState, onCollapse: () -> Unit, onStop: () ->
                         NowPlayingSource(track, state.isPlaying, pal)
                     }
                 }
+                // Видео вместо обложки — включается и выключается здесь же
+                if (videoId != null && netOnline) BouncyIconButton(onClick = { AppSettings.setMusicVideo(!musicVideo) }) {
+                    Icon(if (musicVideo) Icons.Rounded.Videocam else Icons.Rounded.VideocamOff, tr(R.string.music_video))
+                }
                 if (showAddPl) {
                     BouncyIconButton(onClick = { state.trackId?.let { UiEvents.addToPlaylist.value = listOf(it) } }) {
                         Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, tr(R.string.to_playlist))
@@ -311,20 +348,10 @@ fun NowPlayingScreen(state: PlayerUiState, onCollapse: () -> Unit, onStop: () ->
             }
             BoxWithConstraints(Modifier.weight(1f).clipToBounds()) {
             val pageHeight = maxHeight
-            LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-                item(key = "player") {
-                    Column(
-                        Modifier
-                            .fillMaxWidth()
-                            .height(pageHeight)
-                            .navigationBarsPadding(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        // Обложка
+            // Обложка (или видео вместо неё) — отдельно, чтобы в альбомной ориентации встать слева от управления
+            val cover: @Composable (Modifier) -> Unit = { m ->
                         Box(
-                            Modifier
-                                .weight(1f)
-                                .fillMaxWidth()
+                            m
                                 .padding(vertical = 8.dp)
                                 .graphicsLayer {
                                     val a = appear.value
@@ -335,7 +362,8 @@ fun NowPlayingScreen(state: PlayerUiState, onCollapse: () -> Unit, onStop: () ->
                                 },
                             contentAlignment = Alignment.Center,
                         ) {
-                            CoverCarousel(
+                            if (videoOn) MusicVideo(videoId!!, state.isPlaying, onColors = { frameColors = it }, modifier = Modifier.fillMaxSize())
+                            else CoverCarousel(
                                 trackKey = state.mediaId,
                                 artUri = track?.uri,
                                 title = state.title,
@@ -348,23 +376,47 @@ fun NowPlayingScreen(state: PlayerUiState, onCollapse: () -> Unit, onStop: () ->
                             )
                         }
 
+            }
+            // Альбомная ориентация (телефон боком, планшет): обложка слева, управление и вкладки справа
+            val wide = maxWidth > maxHeight * 1.2f
+            LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+                item(key = "player") {
+                    Row(Modifier.fillMaxWidth().height(pageHeight).navigationBarsPadding(), verticalAlignment = Alignment.CenterVertically) {
+                    if (wide) cover(Modifier.weight(1f).fillMaxHeight())
+                    Column(
+                        Modifier.weight(1f).fillMaxHeight(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = if (wide) Arrangement.Center else Arrangement.Top,
+                    ) {
+                        if (!wide) cover(Modifier.weight(1f).fillMaxWidth())
+
                         // Исполнитель уже виден в ссылке-источнике сверху — в панели только название
                         ControlsPanel(
                             state, pal, forward, progress, duration, scrub, { scrub = it }, context,
                             showArtist = !(showSource && track?.channelUrl != null),
                         )
 
-                        // «Очередь • N»: разворачивает очередь ниже плеера и сворачивает её
+                        // «Очередь • N» и (если есть) «Текст»: нажатие на открытую вкладку сворачивает её,
+                        // на другую — плавно сменяет содержимое ниже плеера
+                        val hasLyrics = lyrics != null
                         Row(
-                            Modifier
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                        Row(
+                            // С вкладкой «Текст» каждая кнопка — по центру своей половины ширины
+                            (if (hasLyrics) Modifier.weight(1f).wrapContentWidth(Alignment.CenterHorizontally) else Modifier)
                                 .padding(top = 8.dp, bottom = 6.dp)
                                 .clip(CircleShape)
+                                .background(if (hasLyrics && queueOpen && !lyricsTab) pal.content.copy(alpha = 0.1f) else Color.Transparent)
                                 .clickable {
-                                    if (queueOpen) {
+                                    if (queueOpen && !lyricsTab) {
                                         queueOpen = false
                                         scope.launch { listState.animateScrollToItem(0) }
                                     } else {
                                         // Экран остаётся на месте — очередь просто появляется ниже
+                                        lyricsTab = false
                                         queueOpen = true
                                     }
                                 }
@@ -376,14 +428,59 @@ fun NowPlayingScreen(state: PlayerUiState, onCollapse: () -> Unit, onStop: () ->
                             Text(tr(R.string.queue_n, state.queue.size), style = MaterialTheme.typography.labelLarge, color = pal.contentSecondary)
                             Icon(
                                 Icons.Rounded.KeyboardArrowDown, if (queueOpen) tr(R.string.queue_collapse) else tr(R.string.queue_show),
-                                Modifier.size(18.dp).rotate(queueArrow), tint = pal.contentSecondary,
+                                Modifier.size(18.dp).rotate(if (lyricsTab) -90f else queueArrow), tint = pal.contentSecondary,
                             )
                         }
+                        if (hasLyrics) Row(
+                            // С вкладкой «Текст» каждая кнопка — по центру своей половины ширины
+                            (if (hasLyrics) Modifier.weight(1f).wrapContentWidth(Alignment.CenterHorizontally) else Modifier)
+                                .padding(top = 8.dp, bottom = 6.dp)
+                                .clip(CircleShape)
+                                .background(if (queueOpen && lyricsTab) pal.content.copy(alpha = 0.1f) else Color.Transparent)
+                                .clickable {
+                                    if (queueOpen && lyricsTab) {
+                                        queueOpen = false
+                                        scope.launch { listState.animateScrollToItem(0) }
+                                    } else {
+                                        lyricsTab = true
+                                        queueOpen = true
+                                    }
+                                }
+                                .padding(horizontal = 16.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(Icons.Rounded.Lyrics, null, Modifier.size(18.dp), tint = pal.contentSecondary)
+                            Spacer(Modifier.width(6.dp))
+                            Text(tr(R.string.lyrics), style = MaterialTheme.typography.labelLarge, color = pal.contentSecondary)
+                        }
+                        }
+                    }
                     }
                 }
 
                 // Очередь продолжает экран плеера — прокрутка вниз
-                if (queueOpen) items(entries, key = { it.key }) { ke ->
+                // Текст песни вместо очереди: текущая строка яркая, остальные приглушены; нажатие — перемотка к строке
+                if (queueOpen && lyricsTab) lyrics?.let { l ->
+                    items(l.lines.size, key = { "lyric_$it" }) { i ->
+                        val line = l.lines[i]
+                        val lineColor by androidx.compose.animation.animateColorAsState(
+                            if (!l.synced || i == activeLine) pal.content else pal.content.copy(alpha = 0.4f), label = "lyricColor",
+                        )
+                        Text(
+                            line.text,
+                            color = lineColor,
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            lineHeight = 30.sp,
+                            modifier = Modifier
+                                .animateItem()
+                                .fillMaxWidth()
+                                .clickable(enabled = line.startMs != null) { line.startMs?.let { MusicController.seekTo(it) } }
+                                .padding(horizontal = 28.dp, vertical = 10.dp),
+                        )
+                    }
+                }
+                if (queueOpen && !lyricsTab) items(entries, key = { it.key }) { ke ->
                     ReorderableItem(reorderState, key = ke.key, enabled = canReorder) { isDragging ->
                         val isCurrent = ke.entry.itemIndex == state.currentIndex
                         val qTrack = remember(ke.entry.mediaId) { ke.entry.mediaId.toLongOrNull()?.let { MediaRepository.track(it) } }
@@ -510,7 +607,11 @@ private fun SourceChip(
         SourceAppIcon(url, Modifier.size(20.dp).alpha(alpha))
         Spacer(Modifier.width(6.dp))
         Text(
-            track.channel ?: if (isChannel) tr(R.string.author_channel) else tr(R.string.youtube_video),
+            track.channel ?: when {
+                com.offplayer.app.download.Downloader.isTikTokUrl(url) -> tr(R.string.tiktok_video)
+                isChannel -> tr(R.string.author_channel)
+                else -> tr(R.string.youtube_video)
+            },
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.SemiBold,
             color = pal.content.copy(alpha = alpha),
@@ -536,7 +637,10 @@ private fun SourceAppIcon(url: String, modifier: Modifier = Modifier) {
     val icon = remember(url) {
         val pm = context.packageManager
         val music = url.contains("music.youtube.com")
-        val candidates = if (music) {
+        val candidates = if (com.offplayer.app.download.Downloader.isTikTokUrl(url)) {
+            // TikTok — глобальная и азиатская сборки
+            listOf("com.zhiliaoapp.musically", "com.ss.android.ugc.trill")
+        } else if (music) {
             listOf("com.google.android.apps.youtube.music", "app.revanced.android.apps.youtube.music", "com.google.android.youtube")
         } else {
             listOf("com.google.android.youtube", "app.revanced.android.youtube", "com.vanced.android.youtube")

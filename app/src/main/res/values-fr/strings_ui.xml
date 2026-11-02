@@ -18,7 +18,7 @@
     <string name="selected">Sélectionné</string>
     <string name="more">Plus</string>
     <string name="pip_unsupported">Cet appareil ne prend pas en charge l\'image dans l\'image</string>
-    <string name="share_unsupported">Seuls les liens YouTube et YouTube Music sont pris en charge</string>
+    <string name="share_unsupported">Les liens YouTube, YouTube Music et TikTok sont pris en charge</string>
     <string name="device_storage">Stockage de l\'appareil</string>
     <string name="unknown_album">Sans album</string>
     <string name="unknown_artist">Artiste inconnu</string>
@@ -148,7 +148,7 @@
     <string name="quality_best">Meilleure</string>
     <string name="action_clear">Effacer</string>
     <string name="settings">Paramètres</string>
-    <string name="link_hint">Lien YouTube ou YouTube Music</string>
+    <string name="link_hint">Lien YouTube, YouTube Music ou TikTok</string>
     <string name="clipboard_empty">Le presse-papiers est vide</string>
     <string name="action_paste">Coller</string>
     <string name="link_unsupported">Liens pris en charge : youtube.com, youtu.be et music.youtube.com</string>

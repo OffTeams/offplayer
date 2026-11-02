@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 1.17: места хранения загрузок и вкладка YouTube -->
+<resources>
+    <string name="loc_phone_private">Protected phone storage</string>
+    <string name="loc_phone_private_desc">Only OFFPlayer can see the files. They are deleted together with the app.</string>
+    <string name="loc_sd_private">Protected folder on SD card</string>
+    <string name="loc_sd_private_desc">Saves phone memory. The folder belongs to the app and is deleted together with it.</string>
+    <string name="loc_phone_shared">Phone storage (Music, Movies)</string>
+    <string name="loc_phone_shared_desc">OFFPlayer folder in Music, Podcasts and Movies. Other apps and file managers can see the files; they stay after OFFPlayer is uninstalled.</string>
+    <string name="loc_sd_shared">SD card (Music, Movies)</string>
+    <string name="loc_sd_shared_desc">The same folders on the memory card. Other apps can see the files; they stay after OFFPlayer is uninstalled.</string>
+    <string name="loc_free">Free: %1$s</string>
+    <string name="loc_here">The files are here now</string>
+    <string name="loc_missing_now">Card not found — saving to the phone for now</string>
+
+    <string name="set_storage">Storage</string>
+    <string name="set_save_to">Save downloads to</string>
+    <string name="set_save_to_hint">Files you have already downloaded stay where they are. To move them, use “Move library” or “Where to store…” in an item’s menu.</string>
+    <string name="set_move_library">Move library</string>
+    <string name="set_move_library_empty">Nothing downloaded yet</string>
+
+    <string name="move_menu">Where to store…</string>
+    <string name="move_short">Move</string>
+    <string name="move_title">Where to store</string>
+    <string name="move_action">Move</string>
+    <string name="move_progress_title">Moving to “%1$s”</string>
+    <string name="move_progress">%1$d of %2$d</string>
+    <string name="move_progress_hint">You can keep using the app — moving continues in the background.</string>
+    <string name="move_done_n">Moved: %1$d → %2$s</string>
+    <string name="move_failed_n">Not moved: %1$d. %2$s</string>
+    <string name="move_nothing">The files are already there</string>
+    <string name="move_no_space">Not enough free space</string>
+    <string name="move_source_missing">File not found</string>
+    <string name="move_no_sd">SD card not found</string>
+    <string name="move_failed_create">Could not create the file</string>
+    <string name="move_need_permission">Allow storage access to save to shared folders</string>
+    <string name="action_hide">Hide</string>
+
+    <string name="dl_moving">Saving to “%1$s”…</string>
+    <string name="dl_saved_internal_no_sd">SD card not found — saved to the phone.</string>
+    <string name="dl_saved_internal_failed">Kept in the phone storage: %1$s</string>
+
+    <string name="tab_youtube">YouTube</string>
+    <string name="set_tabs">Tabs</string>
+    <string name="set_youtube_tab">YouTube tab</string>
+    <string name="set_youtube_tab_desc">Browse and watch YouTube in the OFFPlayer player: no ads, with SponsorBlock and chapters. Sign in to see subscriptions and recommendations.</string>
+    <string name="yt_sign_out">Sign out of YouTube</string>
+    <string name="yt_sign_out_desc">Removes the sign-in and cookies of the YouTube tab</string>
+    <string name="yt_signed_out">Signed out of YouTube</string>
+    <string name="yt_download">Download</string>
+    <string name="yt_home">Home</string>
+    <string name="yt_search_hint">Search YouTube</string>
+    <string name="yt_subscriptions">Subscriptions</string>
+    <string name="yt_results_for">Results: %1$s</string>
+    <string name="yt_account">Account</string>
+    <string name="yt_sign_in">Sign in</string>
+    <string name="yt_sign_in_title">Sign in to your Google account</string>
+    <string name="yt_signin_prompt">Sign in to see your recommendations and subscriptions. Search works without an account.</string>
+    <string name="yt_empty">Nothing here yet</string>
+    <string name="yt_load_failed">Could not load: %1$s</string>
+    <string name="yt_play_failed">Could not open the video: %1$s</string>
+    <string name="yt_open_channel">Open channel</string>
+    <string name="yt_live">LIVE</string>
+    <string name="yt_shorts">Shorts</string>
+    <string name="yt_shorts_empty">Could not load Shorts</string>
+    <plurals name="yt_views">
+        <item quantity="one">%1$s view</item>
+        <item quantity="other">%1$s views</item>
+    </plurals>
+    <plurals name="yt_watching">
+        <item quantity="one">%1$s watching</item>
+        <item quantity="other">%1$s watching</item>
+    </plurals>
+    <string name="download_from_tiktok">Download from TikTok</string>
+    <string name="tiktok_video">Video on TikTok</string>
+    <string name="yt_comments">Comments</string>
+    <string name="yt_comments_n">Comments %1$s</string>
+    <string name="yt_you">You</string>
+    <string name="yt_comment_failed">Could not post the comment: %1$s</string>
+    <string name="yt_add_comment">Add a comment…</string>
+    <string name="yt_send">Send</string>
+    <string name="yt_subscribers">%1$s subscribers</string>
+    <string name="yt_need_sign_in">Sign in to YouTube on this tab first</string>
+    <string name="yt_subscribe">Subscribe</string>
+    <string name="yt_subscribed">Subscribed</string>
+    <string name="yt_like">Like</string>
+    <string name="yt_dislike">Dislike</string>
+    <string name="yt_replies_n">%1$d replies</string>
+    <string name="yt_details">Description and comments</string>
+    <string name="yt_share">Share</string>
+    <string name="yt_more">…more</string>
+    <string name="yt_description">Description</string>
+    <string name="yt_views_label">Views</string>
+    <string name="yt_replies_s">Replies: %1$s</string>
+    <string name="set_start_tab">Tab on launch</string>
+    <string name="sec_online">Online</string>
+    <string name="yt_save">Save</string>
+    <string name="yt_save_to">Save to…</string>
+    <string name="yt_saved">Saved to “%1$s”</string>
+    <string name="yt_online_empty">Tap “Save” on a YouTube video page — the playlist will appear here.</string>
+    <string name="yt_online_count">Videos: %1$d</string>
+    <string name="yt_play_all">Play all</string>
+    <string name="yt_remove_from_playlist">Remove from playlist</string>
+    <string name="lyrics">Lyrics</string>
+    <string name="music_video">Video instead of cover</string>
+    <string name="yt_add_account">Add account</string>
+    <string name="yt_notifications">Notifications</string>
+    <string name="yt_no_notifications">No notifications yet</string>
+    <string name="yt_videos">Videos</string>
+    <string name="yt_history">History</string>
+</resources>

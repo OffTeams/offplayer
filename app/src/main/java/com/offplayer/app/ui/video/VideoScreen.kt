@@ -35,6 +35,7 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.rounded.DeleteForever
+import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.MoreVert
 import com.offplayer.app.ui.DeleteRequest
 import com.offplayer.app.ui.UiEvents
@@ -105,11 +106,13 @@ import kotlinx.coroutines.delay
 
 enum class VideoSort(@androidx.annotation.StringRes private val res: Int) { NEWEST(R.string.vsort_newest), OLDEST(R.string.vsort_oldest), TITLE(R.string.psort_title), LONGEST(R.string.vsort_longest), LARGEST(R.string.vsort_largest); val label: String get() = tr(res) }
 
-enum class VideoSection(@androidx.annotation.StringRes private val res: Int) { ALL(R.string.all), LISTS(R.string.lists), CATEGORIES(R.string.categories), DEVICE(R.string.sec_device); val label: String get() = tr(res) }
+enum class VideoSection(@androidx.annotation.StringRes private val res: Int) { ALL(R.string.all), LISTS(R.string.lists), ONLINE(R.string.sec_online), CATEGORIES(R.string.categories), DEVICE(R.string.sec_device); val label: String get() = tr(res) }
 
 private sealed interface VideoDest {
     data class ListDest(val id: String) : VideoDest
     data class CategoryDest(val id: String) : VideoDest
+    /** Онлайн-плейлист (ролики YouTube, играют с картинкой). */
+    data class OnlineDest(val id: String) : VideoDest
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -124,8 +127,10 @@ fun VideoScreen() {
     var section by rememberSaveable { mutableStateOf(VideoSection.ALL) }
     var dest by remember { mutableStateOf<VideoDest?>(null) }
     val deviceMode by AppSettings.deviceMedia.collectAsStateWithLifecycle()
-    val sections = remember(deviceMode) {
-        VideoSection.entries.filter { it != VideoSection.DEVICE || deviceMode == DeviceMediaMode.SEPARATE }
+    // Без интернета раздел «Онлайн» скрыт — вернётся сам, когда сеть появится
+    val online by com.offplayer.app.data.NetworkState.online.collectAsStateWithLifecycle()
+    val sections = remember(deviceMode, online) {
+        VideoSection.entries.filter { (it != VideoSection.DEVICE || deviceMode == DeviceMediaMode.SEPARATE) && (it != VideoSection.ONLINE || online) }
     }
     LaunchedEffect(sections) { if (section !in sections) section = VideoSection.ALL }
     var highlight by remember { mutableStateOf<Long?>(null) }
@@ -163,6 +168,7 @@ fun VideoScreen() {
     when (val d = dest) {
         is VideoDest.ListDest -> { VideoListScreen(d.id, onBack = { dest = null }); return }
         is VideoDest.CategoryDest -> { VideoCategoryScreen(d.id, onBack = { dest = null }); return }
+        is VideoDest.OnlineDest -> { com.offplayer.app.ui.youtube.OnlinePlaylistScreen(d.id, onBack = { dest = null }); return }
         null -> Unit
     }
 
@@ -224,6 +230,10 @@ fun VideoScreen() {
                 VideoListsSection(query) { dest = VideoDest.ListDest(it) }
                 return@Column
             }
+            VideoSection.ONLINE -> {
+                com.offplayer.app.ui.youtube.OnlinePlaylistsList(query, com.offplayer.app.youtube.OnlineTab.VIDEO) { dest = VideoDest.OnlineDest(it) }
+                return@Column
+            }
             VideoSection.CATEGORIES -> {
                 VideoCategoriesSection(query) { dest = VideoDest.CategoryDest(it) }
                 return@Column
@@ -279,6 +289,11 @@ fun VideoScreen() {
                     onClick = { VideoController.play(chosen, 0); selected = emptySet() },
                 )
                 SelectionAction(Icons.AutoMirrored.Rounded.PlaylistAdd, tr(R.string.to_list), onClick = { toList = true }, modifier = Modifier.weight(1f))
+                val own = chosen.filter { !it.isDevice }
+                if (own.isNotEmpty()) SelectionAction(
+                    Icons.Rounded.Storage, tr(R.string.move_short), modifier = Modifier.weight(1f),
+                    onClick = { UiEvents.move.value = own.map { it.id }; selected = emptySet() },
+                )
                 SelectionAction(
                     Icons.Rounded.Delete, tr(R.string.action_delete), danger = true, modifier = Modifier.weight(1f),
                     onClick = {
@@ -499,6 +514,7 @@ private fun VideoMenu(video: Video) {
                     },
                 )
             }
+            if (!video.isDevice) com.offplayer.app.ui.StorageMenuItem(listOf(video.id)) { open = false }
             HorizontalDivider()
             DropdownMenuItem(
                 text = { Text(if (video.isDevice) tr(R.string.delete_from_device) else tr(R.string.action_delete), color = MaterialTheme.colorScheme.error) },

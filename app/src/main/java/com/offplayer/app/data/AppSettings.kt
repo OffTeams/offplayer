@@ -237,8 +237,35 @@ object AppSettings {
     val wholePlaylist: StateFlow<Boolean> = _wholePlaylist.asStateFlow()
     fun setWholePlaylist(v: Boolean) { _wholePlaylist.value = v; prefs.edit().putBoolean("whole_playlist", v).apply() }
 
+    private val _downloadLocation = MutableStateFlow(StorageLocation.PHONE_PRIVATE)
+    /** Куда сохранять новые загрузки. */
+    val downloadLocation: StateFlow<StorageLocation> = _downloadLocation.asStateFlow()
+    fun setDownloadLocation(v: StorageLocation) { _downloadLocation.value = v; prefs.edit().putString("download_location", v.name).apply() }
+
+    private val _musicVideo = MutableStateFlow(false)
+    /** Музыкальный плеер: видео ролика вместо обложки (если трек есть на YouTube). */
+    val musicVideo: StateFlow<Boolean> = _musicVideo.asStateFlow()
+    fun setMusicVideo(v: Boolean) { _musicVideo.value = v; prefs.edit().putBoolean("music_video", v).apply() }
+
+    private val _startTab = MutableStateFlow("MUSIC")
+    /** Вкладка, открывающаяся при запуске (имя MainTab). */
+    val startTab: StateFlow<String> = _startTab.asStateFlow()
+    fun setStartTab(v: String) { _startTab.value = v; prefs.edit().putString("start_tab", v).apply() }
+
+    // ---- YouTube ----
+
+    private val _youtubeTab = MutableStateFlow(false)
+    /** Вкладка «YouTube» — сайт YouTube внутри приложения (по умолчанию скрыта). */
+    val youtubeTab: StateFlow<Boolean> = _youtubeTab.asStateFlow()
+    fun setYoutubeTab(v: Boolean) { _youtubeTab.value = v; prefs.edit().putBoolean("youtube_tab", v).apply() }
+
     fun init(context: Context) {
         prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+        _downloadLocation.value = runCatching { StorageLocation.valueOf(prefs.getString("download_location", null) ?: "") }
+            .getOrDefault(StorageLocation.PHONE_PRIVATE)
+        _youtubeTab.value = prefs.getBoolean("youtube_tab", false)
+        _startTab.value = prefs.getString("start_tab", "MUSIC") ?: "MUSIC"
+        _musicVideo.value = prefs.getBoolean("music_video", false)
         _deviceMedia.value = runCatching { DeviceMediaMode.valueOf(prefs.getString("device_media", null) ?: "") }
             .getOrDefault(DeviceMediaMode.OFF)
         _themeMode.value = runCatching { ThemeMode.valueOf(prefs.getString("theme", null) ?: "") }.getOrDefault(ThemeMode.SYSTEM)

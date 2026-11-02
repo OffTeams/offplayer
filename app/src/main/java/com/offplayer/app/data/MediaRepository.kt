@@ -77,8 +77,9 @@ object MediaRepository {
     private val changes = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     private var started = false
 
-    fun track(id: Long): Track? = trackMap[id]
-    fun video(id: Long): Video? = videoMap[id]
+    // Элементы онлайн-плейлистов (ролики YouTube) — тоже треки и видео, но без файла
+    fun track(id: Long): Track? = trackMap[id] ?: com.offplayer.app.youtube.OnlineStore.trackOf(id)
+    fun video(id: Long): Video? = videoMap[id] ?: com.offplayer.app.youtube.OnlineStore.item(id)?.let(com.offplayer.app.youtube.OnlineStore::video)
 
     fun mediaPermissions(): Array<String> =
         if (Build.VERSION.SDK_INT >= 33) {
@@ -119,8 +120,11 @@ object MediaRepository {
             val ownVideos = LibraryStore.videos()
             val mode = AppSettings.deviceMedia.value
             val device = mode != DeviceMediaMode.OFF && hasPermission(context)
-            val dTracks = if (device) runCatching { queryTracks(context) }.getOrDefault(emptyList()) else emptyList()
-            val dVideos = if (device) runCatching { queryVideos(context) }.getOrDefault(emptyList()) else emptyList()
+            // Файлы медиатеки, перенесённые в общие папки, уже есть среди своих — второй раз их не показываем
+            val ownIds = LibraryStore.sharedMediaIds()
+            val ownPaths = LibraryStore.sharedPaths()
+            val dTracks = if (device) runCatching { queryTracks(context, ownIds, ownPaths) }.getOrDefault(emptyList()) else emptyList()
+            val dVideos = if (device) runCatching { queryVideos(context, ownIds, ownPaths) }.getOrDefault(emptyList()) else emptyList()
             trackMap = (ownAll + dTracks).associateBy { it.id }
             _podcasts.value = ownAll.filter { it.isPodcast }.sortedByDescending { it.dateAdded }
             videoMap = (ownVideos + dVideos).associateBy { it.id }
@@ -211,7 +215,7 @@ object MediaRepository {
         }
     }
 
-    private fun queryTracks(context: Context): List<Track> {
+    private fun queryTracks(context: Context, skipIds: Set<Long>, skipPaths: Set<String>): List<Track> {
         val collection = audioCollection()
         val projection = arrayOf(
             MediaStore.Audio.Media._ID,
@@ -245,6 +249,7 @@ object MediaRepository {
             while (c.moveToNext()) {
                 val id = c.getLong(idCol)
                 val data = c.getString(dataCol)
+                if (id in skipIds || data in skipPaths) continue
                 // Если в файле нет тега альбома, Android подставляет имя папки — такой «альбом» скрываем
                 val folder = data?.let { java.io.File(it).parentFile?.name }
                 val album = c.getString(albumCol)
@@ -274,7 +279,7 @@ object MediaRepository {
         return result
     }
 
-    private fun queryVideos(context: Context): List<Video> {
+    private fun queryVideos(context: Context, skipIds: Set<Long>, skipPaths: Set<String>): List<Video> {
         val collection = videoCollection()
         val projection = arrayOf(
             MediaStore.Video.Media._ID,
@@ -305,6 +310,7 @@ object MediaRepository {
             val dataCol = c.getColumnIndexOrThrow(MediaStore.MediaColumns.DATA)
             while (c.moveToNext()) {
                 val id = c.getLong(idCol)
+                if (id in skipIds || c.getString(dataCol) in skipPaths) continue
                 val title = c.getString(titleCol)?.takeUnless { it.isBlank() }
                     ?: c.getString(nameCol)?.substringBeforeLast('.') ?: tr(R.string.untitled)
                 result += Video(

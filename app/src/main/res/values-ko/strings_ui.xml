@@ -18,7 +18,7 @@
     <string name="selected">선택됨</string>
     <string name="more">더보기</string>
     <string name="pip_unsupported">이 기기는 PIP 모드를 지원하지 않습니다</string>
-    <string name="share_unsupported">YouTube 및 YouTube Music 링크만 지원됩니다</string>
+    <string name="share_unsupported">YouTube, YouTube Music, TikTok 링크를 지원합니다</string>
     <string name="device_storage">기기 저장공간</string>
     <string name="unknown_album">앨범 없음</string>
     <string name="unknown_artist">알 수 없는 아티스트</string>
@@ -148,7 +148,7 @@
     <string name="quality_best">최고 화질</string>
     <string name="action_clear">지우기</string>
     <string name="settings">설정</string>
-    <string name="link_hint">YouTube 또는 YouTube Music 링크</string>
+    <string name="link_hint">YouTube, YouTube Music 또는 TikTok 링크</string>
     <string name="clipboard_empty">클립보드가 비어 있습니다</string>
     <string name="action_paste">붙여넣기</string>
     <string name="link_unsupported">지원 링크: youtube.com, youtu.be, music.youtube.com</string>

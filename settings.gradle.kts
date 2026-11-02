@@ -11,6 +11,13 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // NewPipeExtractor публикуется только на JitPack — оттуда берём лишь его и его зависимости
+        maven("https://jitpack.io") {
+            content {
+                includeGroup("com.github.teamnewpipe")
+                includeGroup("com.github.TeamNewPipe")
+            }
+        }
     }
 }
 

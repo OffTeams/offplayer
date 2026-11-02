@@ -32,7 +32,14 @@ class MediaThumbFetcher(
 
     override suspend fun fetch(): FetchResult = withContext(Dispatchers.IO) {
         val context = options.context
-        val bitmap = if (data.isVideo) videoFrame(context) else audioArt(context)
+        // Ролик YouTube, играющий онлайн: вместо кадра из файла — его превью с YouTube
+        val remote = com.offplayer.app.youtube.StreamMediaSourceFactory.thumbnailOf(data.uri)
+        val bitmap = when {
+            remote != null -> java.net.URL(remote).openStream().use { BitmapFactory.decodeStream(it) }
+                ?: throw FileNotFoundException("Bad thumbnail $remote")
+            data.isVideo -> videoFrame(context)
+            else -> audioArt(context)
+        }
         DrawableResult(
             drawable = BitmapDrawable(context.resources, bitmap),
             isSampled = true,
@@ -63,7 +70,7 @@ class MediaThumbFetcher(
     private fun videoFrame(context: Context): Bitmap {
         val cache = File(context.cacheDir, "video_thumbs").apply { mkdirs() }
         // Кадр для карточки — в высоком разрешении (карточка во всю ширину экрана), для эпизодов — поменьше
-        val suffix = data.timeMs?.let { "_t$it" } ?: "_hd"
+        val suffix = data.timeMs?.let { "_t$it" } ?: "_cover"
         val size = if (data.timeMs == null) VIDEO_SIZE else THUMB_SIZE
         val file = File(cache, "${data.uri.toString().hashCode().toUInt()}$suffix.jpg")
         if (file.exists()) BitmapFactory.decodeFile(file.path)?.let { return it }
@@ -72,6 +79,24 @@ class MediaThumbFetcher(
         try {
             r.setDataSource(context, data.uri)
             // Кадр в заданный момент — превью эпизода (берём чуть позже начала, чтобы не попасть на склейку)
+            // Обложка карточки: превью ролика, а не кадр — встроенное в файл или с YouTube по ID в имени файла
+            if (data.timeMs == null) {
+                r.embeddedPicture?.let { bytes -> BitmapFactory.decodeByteArray(bytes, 0, bytes.size) }?.let { art ->
+                    runCatching { file.outputStream().use { art.compress(Bitmap.CompressFormat.JPEG, 90, it) } }
+                    return art
+                }
+                val id = Regex("""\[([\w-]{11})]\.\w+$""").find(android.net.Uri.decode(data.uri.lastPathSegment.orEmpty()))?.groupValues?.get(1)
+                if (id != null) {
+                    val remote = listOf("maxresdefault", "hqdefault").firstNotNullOfOrNull { q ->
+                        runCatching { java.net.URL("https://i.ytimg.com/vi/$id/$q.jpg").openStream().use { BitmapFactory.decodeStream(it) } }.getOrNull()
+                            ?.takeIf { it.width > 120 } // заглушка «нет картинки» у YouTube — 120×90
+                    }
+                    if (remote != null) {
+                        runCatching { file.outputStream().use { remote.compress(Bitmap.CompressFormat.JPEG, 90, it) } }
+                        return remote
+                    }
+                }
+            }
             data.timeMs?.let { t ->
                 val frame = frameAt(r, (t + 1500) * 1000, size) ?: frameAt(r, t * 1000, size)
                     ?: throw FileNotFoundException("No frame at $t for ${data.uri}")
@@ -125,7 +150,7 @@ class MediaThumbFetcher(
     }
 
     class Key : Keyer<MediaThumb> {
-        override fun key(data: MediaThumb, options: Options): String = "thumb2:${data.uri}:${data.timeMs ?: ""}"
+        override fun key(data: MediaThumb, options: Options): String = "thumb3:${data.uri}:${data.timeMs ?: ""}"
     }
 
     private companion object {

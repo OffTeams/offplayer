@@ -64,6 +64,8 @@ class MainActivity : ComponentActivity() {
     private var orientationListener: OrientationEventListener? = null
 
     private var videoOpen = false
+    /** Видео открывали — только тогда при закрытии возвращаем ориентацию «как было до видео». */
+    private var videoWasOpen = false
     private var orientationLockedByUser = false
     private var videoController: MediaController? = null
 
@@ -172,6 +174,7 @@ class MainActivity : ComponentActivity() {
     private fun onVideoModeChanged(open: Boolean) {
         val insets = WindowCompat.getInsetsController(window, window.decorView)
         if (open) {
+            videoWasOpen = true
             insets.hide(WindowInsetsCompat.Type.systemBars())
             insets.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             orientationLockedByUser = false
@@ -184,7 +187,8 @@ class MainActivity : ComponentActivity() {
         } else {
             insets.show(WindowInsetsCompat.Type.systemBars())
             stopOrientationWatch()
-            restoreOrientation()
+            // При запуске приложения видео не было — ориентацию не трогаем: как держат устройство, так и остаётся
+            if (videoWasOpen) restoreOrientation()
             resetWindowBrightness()
         }
         updatePipParams()

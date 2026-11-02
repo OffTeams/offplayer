@@ -118,6 +118,13 @@ import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import com.offplayer.app.data.SbAction
+import com.offplayer.app.data.Storage
+import com.offplayer.app.data.StorageLocation
+import androidx.compose.material.icons.rounded.SdStorage
+import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.DriveFileMove
+import androidx.compose.material.icons.rounded.SmartDisplay
+import androidx.compose.material.icons.rounded.Logout
 import com.offplayer.app.data.SponsorBlock
 import com.offplayer.app.data.ThemeMode
 import com.offplayer.app.ui.UiEvents
@@ -252,6 +259,34 @@ private fun GeneralPage() {
     Divider()
     Header(tr(R.string.set_library))
     DeviceMediaRows()
+    Divider()
+    Header(tr(R.string.set_tabs))
+    val startTab by AppSettings.startTab.collectAsStateWithLifecycle()
+    val ytOn by AppSettings.youtubeTab.collectAsStateWithLifecycle()
+    ChoiceRow(
+        Icons.Rounded.Home, tr(R.string.set_start_tab),
+        com.offplayer.app.ui.MainTab.entries.filter { it != com.offplayer.app.ui.MainTab.YOUTUBE || ytOn }.map { it.name to it.label },
+        startTab, AppSettings::setStartTab,
+    )
+    YouTubeRows()
+}
+
+@Composable
+private fun YouTubeRows() {
+    val context = LocalContext.current
+    val enabled by AppSettings.youtubeTab.collectAsStateWithLifecycle()
+    val signedIn by com.offplayer.app.youtube.YouTubeAccount.signedIn.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) { com.offplayer.app.youtube.YouTubeAccount.refresh() }
+    SwitchRow(
+        Icons.Rounded.SmartDisplay, tr(R.string.set_youtube_tab), tr(R.string.set_youtube_tab_desc), enabled,
+        onChange = AppSettings::setYoutubeTab,
+    )
+    if (signedIn) {
+        SettingRow(Icons.Rounded.Logout, tr(R.string.yt_sign_out), tr(R.string.yt_sign_out_desc), onClick = {
+            com.offplayer.app.youtube.YouTubeAccount.signOut()
+            Toast.makeText(context, tr(R.string.yt_signed_out), Toast.LENGTH_SHORT).show()
+        })
+    }
 }
 
 @Composable
@@ -372,6 +407,9 @@ private fun DownloadsPage() {
     val autoSubs by AppSettings.autoSubs.collectAsStateWithLifecycle()
     val whole by AppSettings.wholePlaylist.collectAsStateWithLifecycle()
 
+    Header(tr(R.string.set_storage))
+    StorageRows()
+    Divider()
     Header(tr(R.string.set_defaults))
     ChoiceRow(Icons.Rounded.AudioFile, tr(R.string.audio_format), AUDIO_FORMATS, audioFormat, AppSettings::setAudioFormat)
     ChoiceRow(Icons.Rounded.HighQuality, tr(R.string.video_quality), VIDEO_QUALITIES, height, AppSettings::setVideoHeight)
@@ -444,6 +482,71 @@ private fun UpdateRows() {
         tr(R.string.upd_auto_desc),
         auto, { AppUpdater.setAutoCheck(context, it) },
     )
+}
+
+// ---------- Хранение загрузок ----------
+
+@Composable
+private fun StorageRows() {
+    val context = LocalContext.current
+    val location by AppSettings.downloadLocation.collectAsStateWithLifecycle()
+    val moving by com.offplayer.app.ui.StorageMover.progress.collectAsStateWithLifecycle()
+    var choosing by remember { mutableStateOf(false) }
+    var pending by remember { mutableStateOf<StorageLocation?>(null) }
+    val options = remember(choosing) { Storage.available(context) }
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val p = pending
+        pending = null
+        if (granted && p != null) AppSettings.setDownloadLocation(p)
+        else if (!granted) Toast.makeText(context, tr(R.string.move_need_permission), Toast.LENGTH_LONG).show()
+    }
+    // Сколько файлов и места в каждом месте — пересчитывается после переноса
+    val usage = remember(moving == null) {
+        LibraryStore.all().groupBy { LibraryStore.locationOf(it) }.mapValues { (_, l) -> l.size to l.sumOf { it.size } }
+    }
+    // Выбранная карта вынута — загрузки временно идут во внутреннюю память
+    val missing = location !in options
+    SettingRow(
+        Icons.Rounded.SdStorage, tr(R.string.set_save_to),
+        listOfNotNull(location.label, if (missing) tr(R.string.loc_missing_now) else null).joinToString("\n"),
+        onClick = { choosing = true },
+    ) {
+        Spacer(Modifier.width(8.dp))
+        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+    }
+    SettingRow(
+        Icons.Rounded.DriveFileMove, tr(R.string.set_move_library),
+        if (usage.isEmpty()) tr(R.string.set_move_library_empty)
+        else usage.entries.sortedBy { it.key.ordinal }.joinToString("\n") { (loc, u) -> "${loc.label}: ${tr(R.string.files_count, u.first, formatSize(u.second))}" },
+        enabled = usage.isNotEmpty() && moving == null,
+        onClick = { UiEvents.move.value = LibraryStore.all().map { it.id } },
+    )
+    if (choosing) {
+        AlertDialog(
+            onDismissRequest = { choosing = false },
+            title = { Text(tr(R.string.set_save_to)) },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    options.forEach { loc ->
+                        com.offplayer.app.ui.LocationOption(
+                            loc = loc, selected = loc == location, here = false,
+                            free = remember(loc) { Storage.freeSpace(context, loc) },
+                            onClick = {
+                                choosing = false
+                                if (Storage.needsWritePermission(context, loc)) {
+                                    pending = loc
+                                    permission.launch(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                                } else AppSettings.setDownloadLocation(loc)
+                            },
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text(tr(R.string.set_save_to_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            },
+            confirmButton = { TextButton(onClick = { choosing = false }) { Text(tr(R.string.action_close)) } },
+        )
+    }
 }
 
 // ---------- Медиатека: контент устройства ----------

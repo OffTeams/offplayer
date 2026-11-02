@@ -80,6 +80,15 @@ fun ArtColors.palette(dark: Boolean): PlayerPalette = if (dark) {
  * при открытии плеера сразу виден правильный цвет, а цвета соседних треков очереди
  * считаются заранее — при переключении трека палитра уже готова.
  */
+/** Палитра из произвольной картинки — например, текущего кадра видео вместо обложки. */
+fun artColorsOf(bitmap: android.graphics.Bitmap): ArtColors = runCatching {
+    val p = Palette.from(bitmap).maximumColorCount(16).generate()
+    val accent = (p.vibrantSwatch ?: p.lightVibrantSwatch ?: p.dominantSwatch)?.rgb ?: return@runCatching null
+    val dark = (p.darkVibrantSwatch ?: p.darkMutedSwatch ?: p.dominantSwatch)?.rgb ?: accent
+    val muted = (p.mutedSwatch ?: p.lightMutedSwatch ?: p.darkMutedSwatch)?.rgb ?: dark
+    ArtColors(accent = Color(accent), dark = Color(dark), muted = Color(muted))
+}.getOrNull() ?: DefaultArtColors
+
 object ArtColorCache {
     private val cache = ConcurrentHashMap<Uri, ArtColors>()
     private val mutex = Mutex()

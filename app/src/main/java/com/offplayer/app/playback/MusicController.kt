@@ -329,6 +329,34 @@ object MusicController {
     }
 
     /** Убирает из очереди удалённые с устройства треки. */
+    /**
+     * Файл трека переехал (другое место хранения): элементы очереди с этим id переводятся на новый адрес.
+     * Текущий трек продолжает играть с той же позиции.
+     */
+    fun relinkMedia(mediaId: String, uri: Uri) {
+        val c = controller ?: return
+        for (i in 0 until c.mediaItemCount) {
+            val item = c.getMediaItemAt(i)
+            if (item.mediaId != mediaId) continue
+            val old = item.localConfiguration?.uri
+            val art = item.mediaMetadata.artworkUri
+            val relinked = item.buildUpon()
+                .setUri(uri)
+                .setRequestMetadata(MediaItem.RequestMetadata.Builder().setMediaUri(uri).build())
+                .setMediaMetadata(
+                    // Обложка бралась из самого файла — теперь из копии; общая обложка альбома остаётся
+                    if (old != null && art == ThumbBitmapLoader.artworkUri(old, isVideo = false))
+                        item.mediaMetadata.buildUpon().setArtworkUri(ThumbBitmapLoader.artworkUri(uri, isVideo = false)).build()
+                    else item.mediaMetadata
+                )
+                .build()
+            val current = i == c.currentMediaItemIndex
+            val pos = c.currentPosition
+            c.replaceMediaItem(i, relinked)
+            if (current && c.currentMediaItemIndex == i && c.currentPosition != pos) c.seekTo(i, pos)
+        }
+    }
+
     fun removeMedia(mediaIds: Set<String>) = withController { c ->
         for (i in c.mediaItemCount - 1 downTo 0) {
             if (c.getMediaItemAt(i).mediaId in mediaIds) c.removeMediaItem(i)

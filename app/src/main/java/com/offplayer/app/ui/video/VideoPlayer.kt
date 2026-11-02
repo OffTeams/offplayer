@@ -95,6 +95,7 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.material.icons.automirrored.rounded.FormatListBulleted
 import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
+import androidx.compose.material.icons.automirrored.rounded.Comment
 import kotlinx.coroutines.Job
 import android.view.GestureDetector
 import android.view.LayoutInflater
@@ -105,10 +106,11 @@ import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-enum class GestureZone { BRIGHTNESS, VOLUME, COLLAPSE }
+/** EXPAND — свайп вверх по центру: открыть описание ролика YouTube. */
+enum class GestureZone { BRIGHTNESS, VOLUME, COLLAPSE, EXPAND }
 
 /** Боковая панель видеоплеера. */
-enum class PlayerPanel { NONE, CHAPTERS, QUEUE }
+enum class PlayerPanel { NONE, CHAPTERS, QUEUE, DETAILS }
 
 /** Подсказка после двойного нажатия. */
 sealed interface TapHint {
@@ -169,7 +171,7 @@ class PlayerGestureLayout(context: Context, val playerView: PlayerView) : FrameL
                         downX < width * 0.2f -> GestureZone.BRIGHTNESS
                         downX > width * 0.8f -> GestureZone.VOLUME
                         dy > 0 -> GestureZone.COLLAPSE
-                        else -> return false
+                        else -> GestureZone.EXPAND
                     }
                     zone = z
                     startLevel = listener?.currentLevel(z) ?: 0f
@@ -189,10 +191,13 @@ class PlayerGestureLayout(context: Context, val playerView: PlayerView) : FrameL
         when (ev.actionMasked) {
             MotionEvent.ACTION_MOVE -> when (z) {
                 GestureZone.COLLAPSE -> listener?.onCollapseDrag(dy.coerceAtLeast(0f))
+                GestureZone.EXPAND -> Unit
                 else -> listener?.onLevel(z, (startLevel - dy / (height * 0.65f)).coerceIn(0f, 1f))
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                val collapse = z == GestureZone.COLLAPSE && ev.actionMasked == MotionEvent.ACTION_UP && dy > height * 0.18f
+                val up = ev.actionMasked == MotionEvent.ACTION_UP
+                // collapse — жест доведён: вниз на 18% высоты (свернуть) или вверх на 12% (описание)
+                val collapse = (z == GestureZone.COLLAPSE && up && dy > height * 0.18f) || (z == GestureZone.EXPAND && up && dy < -height * 0.12f)
                 listener?.onGestureEnd(z, collapse)
                 zone = null
             }
@@ -241,6 +246,8 @@ fun VideoPlayerScreen(
     // Боковая панель: эпизоды текущего видео или очередь проигрываемого списка
     var panel by remember { mutableStateOf(PlayerPanel.NONE) }
     val chaptersOpen = panel == PlayerPanel.CHAPTERS
+    // Ролик YouTube, играющий онлайн: у него есть описание, оценки и комментарии
+    val ytId = ui.videoId?.let { com.offplayer.app.youtube.YouTubeStreams.youtubeIdOf(it) }
     val hasQueue = ui.queue.size > 1
     var skipNotice by remember { mutableStateOf<SponsorSegment?>(null) }
     LaunchedEffect(Unit) { VideoController.skipped.collect { skipNotice = it } }
@@ -294,6 +301,36 @@ fun VideoPlayerScreen(
 
     // Свайп вниз из центра: свернуть в мини-плеер, видео продолжает играть в фоне
     val doCollapse by rememberUpdatedState(onMinimize)
+    val rotateNow by rememberUpdatedState(onRotate)
+    // Описание поверх альбомного видео на планшете (на телефоне описание — в портретной ориентации)
+    var tabletDetails by remember { mutableStateOf(false) }
+    val tablet = androidx.compose.ui.platform.LocalConfiguration.current.smallestScreenWidthDp >= 600
+    LaunchedEffect(ui.videoId) { tabletDetails = tablet }
+    val landscapeNow = androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    // Свайп вверх по центру: телефон (меньше 7 дюймов) поворачивается в портрет — там страница ролика;
+    // планшет остаётся в альбомной ориентации, описание открывается панелью справа
+    val openDetailsNow by rememberUpdatedState {
+        if (ytId != null) {
+            when {
+                // Миниатюра на странице ролика: свайп вверх — во весь экран
+                !landscapeNow -> rotateNow()
+                // Планшет: со страницы ролика свайп вверх — видео во весь экран, из полноэкранного — страница ролика
+                tablet -> tabletDetails = !tabletDetails
+                else -> rotateNow()
+            }
+        }
+    }
+    androidx.activity.compose.BackHandler(tabletDetails && !tablet) { tabletDetails = false }
+    // Кнопка «на весь экран»: на телефоне — поворот, на планшете — страница ролика или видео во весь экран
+    // Одно нажатие может прийти дважды (второй раз — с обратным значением): повтор в течение 700 мс пропускаем
+    var lastFullscreenAt by remember { mutableStateOf(0L) }
+    val fullscreenNow by rememberUpdatedState { wantFull: Boolean ->
+        val now = android.os.SystemClock.uptimeMillis()
+        if (now - lastFullscreenAt < 700) return@rememberUpdatedState
+        lastFullscreenAt = now
+        if (tablet && ytId != null) tabletDetails = !wantFull
+        else if (wantFull != landscapeNow) rotateNow()
+    }
 
     // Двойное нажатие: по краям (зоны яркости/громкости) — перемотка на 10 с, в центре — заполнение экрана
     var fillScreen by remember { mutableStateOf(AppSettings.videoFill.value) }
@@ -352,7 +389,7 @@ fun VideoPlayerScreen(
                         Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS) / 255f
                     }.getOrDefault(0.5f).coerceIn(0f, 1f)
                 }
-                GestureZone.COLLAPSE -> 0f
+                GestureZone.COLLAPSE, GestureZone.EXPAND -> 0f
             }
 
             override fun onLevel(zone: GestureZone, level: Float) {
@@ -365,7 +402,7 @@ fun VideoPlayerScreen(
                     GestureZone.BRIGHTNESS -> activity?.window?.let { w ->
                         w.attributes = w.attributes.apply { screenBrightness = level.coerceAtLeast(0.01f) }
                     }
-                    GestureZone.COLLAPSE -> Unit
+                    GestureZone.COLLAPSE, GestureZone.EXPAND -> Unit
                 }
                 indicator.value = zone to level
             }
@@ -375,7 +412,9 @@ fun VideoPlayerScreen(
             }
 
             override fun onGestureEnd(zone: GestureZone, collapse: Boolean) {
-                if (zone == GestureZone.COLLAPSE) {
+                if (zone == GestureZone.EXPAND) {
+                    if (collapse) openDetailsNow()
+                } else if (zone == GestureZone.COLLAPSE) {
                     // Свернули — плеер уходит вниз как есть (без возврата картинки на место перед закрытием);
                     // не дотянули — картинка плавно возвращается
                     if (collapse) doCollapse() else scope.launch { collapseOffset.animateTo(0f) }
@@ -395,12 +434,14 @@ fun VideoPlayerScreen(
     val density = LocalDensity.current
     val layoutDirection = LocalLayoutDirection.current
     val safe = WindowInsets.safeDrawing
-    val cornerPx = with(density) { 20.dp.roundToPx() }
+    // Миниатюра на странице ролика (портрет) — управление почти у краёв; во весь экран — прежние поля
+    val slim = ytId != null && !landscapeNow && !inPip
+    val cornerPx = with(density) { (if (slim) 6.dp else 20.dp).roundToPx() }
     val startPx = if (inPip) 0 else maxOf(safe.getLeft(density, layoutDirection), cornerPx)
     val edgeEndPx = if (inPip) 0 else maxOf(safe.getRight(density, layoutDirection), cornerPx)
     val topPx = if (inPip) 0 else safe.getTop(density)
     val bottomPx = if (inPip) 0 else safe.getBottom(density) + with(density) { 4.dp.roundToPx() }
-    val timelineDropPx = with(density) { 14.dp.roundToPx() }
+    val timelineDropPx = with(density) { 8.dp.roundToPx() }
     val startDp = with(density) { startPx.toDp() }
     val topDp = with(density) { topPx.toDp() }
 
@@ -412,11 +453,29 @@ fun VideoPlayerScreen(
         // Панель «Эпизоды» не перекрывает видео: видео плавно ужимается и сдвигается
         // (влево в горизонтальной ориентации, вверх — в вертикальной), занимая пустые поля
         val landscape = maxWidth > maxHeight
-        val panelWidth = (maxWidth * 0.36f).coerceAtMost(380.dp)
-        val panelHeight = maxHeight * 0.5f
-        val panelVisible = !inPip && ((panel == PlayerPanel.CHAPTERS && chapters.isNotEmpty()) || (panel == PlayerPanel.QUEUE && hasQueue))
+        // Планшет в альбомной ориентации: видео слева сверху, под ним страница ролика, справа — похожие ролики
+        val tabletWatch = tablet && landscape && ytId != null && tabletDetails && !inPip
+        val panelWidth = when {
+            tabletWatch -> maxWidth * 0.32f
+            tabletDetails && ytId != null -> (maxWidth * 0.38f).coerceAtMost(560.dp)
+            else -> (maxWidth * 0.36f).coerceAtMost(380.dp)
+        }
+        val tabletPageHeight = (maxHeight - topDp - (maxWidth - panelWidth) * 9f / 16f).coerceAtLeast(0.dp)
+        // Ролик YouTube в вертикальной ориентации — как страница ролика в приложении YouTube:
+        // видео 16:9 сверху, под ним название, канал, оценки, описание и комментарии. Повернули — видео на весь экран
+        val watchPage = ytId != null && !inPip && (!landscape || tabletDetails)
+        val panelHeight = if (watchPage) (maxHeight - topDp - maxWidth * 9f / 16f).coerceAtLeast(0.dp) else maxHeight * 0.5f
+        val panelVisible = !inPip && ((panel == PlayerPanel.CHAPTERS && chapters.isNotEmpty()) || (panel == PlayerPanel.QUEUE && hasQueue) || watchPage)
         val endInset by animateDpAsState(if (panelVisible && landscape) panelWidth else 0.dp, tween(350), label = "endInset")
-        val bottomInset by animateDpAsState(if (panelVisible && !landscape) panelHeight else 0.dp, tween(350), label = "bottomInset")
+        val bottomInset by animateDpAsState(
+            when {
+                tabletWatch -> tabletPageHeight
+                panelVisible && !landscape -> panelHeight
+                else -> 0.dp
+            },
+            tween(350), label = "bottomInset",
+        )
+        val watchTopInset by animateDpAsState(if (watchPage) topDp else 0.dp, tween(350), label = "watchTopInset")
         // Справа от управления — край экрана или (при открытых эпизодах) сама панель
         val endPx = if (panelVisible && landscape) with(density) { 12.dp.roundToPx() } else edgeEndPx
         val endDp = with(density) { endPx.toDp() }
@@ -430,6 +489,10 @@ fun VideoPlayerScreen(
                     setShowRewindButton(false)
                     setShowFastForwardButton(false)
                     setShowSubtitleButton(true)
+                    // Кнопка «на весь экран» в панели управления: поворот между альбомной и портретной ориентацией
+                    // Обработчик вызывается и при смене значка (setFullscreenButtonState) — поворачиваем,
+                    // только если просят не ту ориентацию, что сейчас, иначе экран крутился бы по кругу
+                    setFullscreenButtonClickListener { wantFull -> fullscreenNow(wantFull) }
                     keepScreenOn = true
                     // Встроенный автотаймер скрывает интерфейс в два этапа (сначала кнопки, потом полосу).
                     // Отключаем его: скрываем сами тем же способом, что и по тапу — одной анимацией.
@@ -458,9 +521,22 @@ fun VideoPlayerScreen(
                 pv.findViewById<View>(androidx.media3.ui.R.id.exo_progress)?.addOnLayoutChangeListener { v, _, _, _, _, _, _, _, _ ->
                     if (v.width != timeBarWidth) timeBarWidth = v.width
                 }
+                // Полоса перемотки реагирует только на касание самой линии (±8 dp от неё): нажатие рядом
+                // с ней — как по пустому месту (скрыть интерфейс), а не перемотка
+                pv.findViewById<View>(androidx.media3.ui.R.id.exo_progress)?.let { bar ->
+                    val band = 8f * ctx.resources.displayMetrics.density
+                    var ignore = false
+                    bar.setOnTouchListener { v, ev ->
+                        if (ev.actionMasked == MotionEvent.ACTION_DOWN) ignore = abs(ev.y - v.height / 2f) > band
+                        if (ignore && ev.actionMasked == MotionEvent.ACTION_UP) pv.hideController()
+                        ignore
+                    }
+                }
                 PlayerGestureLayout(ctx, pv).apply { onAnyTouch = { touchTick++ } }
             },
             update = { layout ->
+                // Значок кнопки: «развернуть» в портретной ориентации, «свернуть» в альбомной
+                layout.playerView.setFullscreenButtonState(if (tablet && ytId != null) !watchPage else landscape)
                 layout.listener = gestureListener
                 layout.gesturesEnabled = !inPip
                 if (layout.playerView.player !== controller) {
@@ -515,7 +591,8 @@ fun VideoPlayerScreen(
             onRelease = { it.playerView.player = null },
             modifier = Modifier
                 .fillMaxSize()
-                .padding(end = endInset, bottom = bottomInset)
+                // На странице ролика видео начинается под строкой состояния — не заходит на камеру
+                .padding(top = watchTopInset, end = endInset, bottom = bottomInset)
                 .graphicsLayer {
                     val p = (collapseOffset.value / size.height.coerceAtLeast(1f)).coerceIn(0f, 1f)
                     translationY = collapseOffset.value
@@ -645,6 +722,13 @@ fun VideoPlayerScreen(
                 }
             }
 
+            // Планшет: под видео слева — название, кнопки и комментарии (похожие ролики — в колонке справа)
+            if (tabletWatch && ytId != null) {
+                com.offplayer.app.ui.youtube.WatchPage(
+                    ytId, showRelated = false, sidePanel = true,
+                    modifier = Modifier.align(Alignment.BottomStart).width(maxWidth - panelWidth).height(tabletPageHeight),
+                )
+            }
             // Панель «Эпизоды» встаёт на освободившееся место: справа или снизу
             AnimatedVisibility(
                 visible = panelVisible,
@@ -671,8 +755,14 @@ fun VideoPlayerScreen(
                 }
                 // Последняя открытая панель остаётся на экране во время анимации скрытия
                 var shownPanel by remember { mutableStateOf(PlayerPanel.CHAPTERS) }
-                if (panel != PlayerPanel.NONE) shownPanel = panel
-                if (shownPanel == PlayerPanel.QUEUE) {
+                if (panel != PlayerPanel.NONE) shownPanel = panel else if (watchPage) shownPanel = PlayerPanel.DETAILS
+                if (shownPanel == PlayerPanel.DETAILS && ytId != null && tabletWatch) {
+                    // Планшет: справа колонка похожих роликов, а открытые описание или комментарии — вместо неё
+                    com.offplayer.app.ui.youtube.WatchSidePanel(ytId, modifier = panelModifier, contentPadding = panelPadding)
+                } else if (shownPanel == PlayerPanel.DETAILS && ytId != null) {
+                    // Страница ролика под видео: описание раскрывается нажатием, ниже — комментарии
+                    com.offplayer.app.ui.youtube.WatchPage(ytId, modifier = panelModifier, contentPadding = panelPadding)
+                } else if (shownPanel == PlayerPanel.QUEUE) {
                     QueuePanel(
                         title = ui.queueTitle ?: tr(R.string.queue),
                         queue = ui.queue,

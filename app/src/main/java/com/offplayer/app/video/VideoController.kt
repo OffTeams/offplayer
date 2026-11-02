@@ -107,6 +107,24 @@ object VideoController {
     private var queueTitle: String? = null
 
     /** Убирает из очереди удалённые видео; если очередь опустела — закрывает плеер. */
+    /** Файл видео переехал в другое место хранения — элемент очереди переводится на новый адрес с той же позиции. */
+    fun relinkMedia(id: Long, uri: android.net.Uri) {
+        val c = _controller.value ?: return
+        for (i in 0 until c.mediaItemCount) {
+            val item = c.getMediaItemAt(i)
+            if (item.mediaId.toLongOrNull() != id) continue
+            val current = i == c.currentMediaItemIndex
+            val pos = c.currentPosition
+            c.replaceMediaItem(
+                i,
+                item.buildUpon().setUri(uri)
+                    .setRequestMetadata(androidx.media3.common.MediaItem.RequestMetadata.Builder().setMediaUri(uri).build())
+                    .build(),
+            )
+            if (current && c.currentMediaItemIndex == i && c.currentPosition != pos) c.seekTo(i, pos)
+        }
+    }
+
     fun removeMedia(ids: Set<Long>) {
         val c = _controller.value ?: return
         for (i in c.mediaItemCount - 1 downTo 0) {
@@ -217,15 +235,47 @@ object VideoController {
     @Volatile var expectedAspect: Float = 0f
         private set
 
+    /**
+     * Играет ролик YouTube: экран не поворачивается сам — открывается вертикальная страница ролика
+     * (видео сверху, описание и комментарии под ним), на весь экран — поворотом телефона.
+     */
+    @Volatile var watchPage: Boolean = false
+        private set
+
     fun play(videos: List<Video>, index: Int, listTitle: String? = null) {
+        watchPage = false
         queueTitle = listTitle
         expectedAspect = videos.getOrNull(index)?.let { v -> if (v.width > 0 && v.height > 0) v.width.toFloat() / v.height else 0f } ?: 0f
         playItems(videos.map { videoItem(it.id.toString(), it.uri, it.title) }, index)
     }
 
+    /** Ролик YouTube, играющий онлайн: обложка — превью YouTube, эпизоды и SponsorBlock — по его playerId. */
+    fun playStream(stream: com.offplayer.app.youtube.YtStream) {
+        queueTitle = null
+        watchPage = true
+        // Как в YouTube: обычный ролик открывается на весь экран в альбомной ориентации, вертикальный — в портретной
+        expectedAspect = if (stream.width > 0 && stream.height > 0) stream.width.toFloat() / stream.height else 16f / 9f
+        val item = MediaItem.Builder()
+            .setMediaId(stream.playerId.toString())
+            .setUri(stream.uri)
+            .setRequestMetadata(MediaItem.RequestMetadata.Builder().setMediaUri(stream.uri).build())
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setTitle(stream.title)
+                    .setArtist(stream.channel)
+                    .apply { stream.thumbnail?.let { setArtworkUri(Uri.parse(it)) } }
+                    .setIsPlayable(true)
+                    .setIsBrowsable(false)
+                    .build()
+            )
+            .build()
+        playItems(listOf(item), 0)
+    }
+
     /** Видео, открытое из другого приложения («Открыть с помощью»). */
     fun playUri(context: Context, uri: Uri) {
         queueTitle = null
+        watchPage = false
         expectedAspect = 0f
         playItems(listOf(videoItem(uri.toString(), uri, displayName(context, uri))), 0)
     }

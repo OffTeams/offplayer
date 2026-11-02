@@ -65,6 +65,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import com.offplayer.app.ui.theme.AppShapes
 import androidx.compose.material.icons.rounded.VideoLibrary
+import androidx.compose.material.icons.rounded.SmartDisplay
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -107,6 +108,8 @@ import kotlinx.coroutines.launch
 enum class MainTab(@androidx.annotation.StringRes private val res: Int, val icon: ImageVector) {
     MUSIC(R.string.tab_music, Icons.Rounded.LibraryMusic),
     PODCASTS(R.string.tab_podcasts, Icons.Rounded.Podcasts),
+    /** Необязательная вкладка — включается в настройках; стоит посередине меню. */
+    YOUTUBE(R.string.tab_youtube, Icons.Rounded.SmartDisplay),
     VIDEO(R.string.tab_video, Icons.Rounded.VideoLibrary),
     DOWNLOADS(R.string.tab_downloads, Icons.Rounded.Download);
 
@@ -126,8 +129,26 @@ fun MainScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val pagerState = rememberPagerState { MainTab.entries.size }
-    val tab = MainTab.entries[pagerState.currentPage]
+    val youtubeTab by AppSettings.youtubeTab.collectAsStateWithLifecycle()
+    // Вкладка YouTube: включена в настройках и есть интернет (без сети прячется и возвращается сама)
+    val online by com.offplayer.app.data.NetworkState.online.collectAsStateWithLifecycle()
+    val tabs = remember(youtubeTab, online) { MainTab.entries.filter { it != MainTab.YOUTUBE || (youtubeTab && online) } }
+    // Вкладка при запуске — из настроек (если она выключена — первая)
+    val startTab = remember { MainTab.entries.firstOrNull { it.name == AppSettings.startTab.value }?.takeIf { it in tabs } ?: MainTab.MUSIC }
+    val pagerState = rememberPagerState(initialPage = tabs.indexOf(startTab).coerceAtLeast(0)) { tabs.size }
+    val tab = tabs.getOrElse(pagerState.currentPage) { tabs.last() }
+    fun pageOf(t: MainTab) = tabs.indexOf(t).coerceAtLeast(0)
+    // Вкладку YouTube включили или выключили — остаёмся на той же вкладке, хотя её номер сдвинулся
+    var lastTab by rememberSaveable { mutableStateOf(startTab) }
+    // Вложенный свайп (Shorts внутри YouTube) может оставить вкладки на полпути — доводим до ближайшей
+    LaunchedEffect(pagerState.isScrollInProgress) {
+        if (!pagerState.isScrollInProgress && kotlin.math.abs(pagerState.currentPageOffsetFraction) > 0.001f) {
+            pagerState.animateScrollToPage(pagerState.currentPage)
+        }
+    }
+    LaunchedEffect(tab) { lastTab = tab }
+    val landscapeMain = androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    LaunchedEffect(tabs) { if (tabs.getOrNull(pagerState.currentPage) != lastTab) pagerState.scrollToPage(pageOf(lastTab)) }
     var playerExpanded by rememberSaveable { mutableStateOf(false) }
     var pendingUrl by rememberSaveable { mutableStateOf<String?>(null) }
     val player by MusicController.state.collectAsStateWithLifecycle()
@@ -174,35 +195,62 @@ fun MainScreen(
         }
         if (r.kind == DownloadResult.Kind.PODCAST) UiEvents.reveal.value = null
         // Вкладка сама сбросит запрос — переход не должен прерываться вместе с эффектом
-        scope.launch { pagerState.scrollToPage(target.ordinal) }
+        scope.launch { pagerState.scrollToPage(pageOf(target)) }
     }
     val openDownloads by UiEvents.openDownloads.collectAsStateWithLifecycle()
     LaunchedEffect(openDownloads) {
         if (openDownloads > 0) {
             playerExpanded = false
             if (videoOpen) VideoController.close(stopPlayback = false)
-            pagerState.scrollToPage(MainTab.DOWNLOADS.ordinal)
+            pagerState.scrollToPage(pageOf(MainTab.DOWNLOADS))
         }
+    }
+
+    // «Скачать» в плеере ролика YouTube и в Shorts — на вкладку «Загрузки»; ролик сворачивается и играет дальше
+    val ytDownload by com.offplayer.app.youtube.YouTubeNav.downloadRequest.collectAsStateWithLifecycle()
+    LaunchedEffect(ytDownload) {
+        val url = ytDownload ?: return@LaunchedEffect
+        com.offplayer.app.youtube.YouTubeNav.downloadRequest.value = null
+        pendingUrl = url
+        if (videoOpen) VideoController.close(stopPlayback = false)
+        pagerState.scrollToPage(pageOf(MainTab.DOWNLOADS))
+    }
+    // Аватар канала в плеере — страница канала во вкладке YouTube (сам переход делает вкладка)
+    val ytChannel by com.offplayer.app.youtube.YouTubeNav.channelRequest.collectAsStateWithLifecycle()
+    LaunchedEffect(ytChannel) {
+        if (ytChannel == null) return@LaunchedEffect
+        if (videoOpen) VideoController.close(stopPlayback = false)
+        if (MainTab.YOUTUBE in tabs) pagerState.scrollToPage(pageOf(MainTab.YOUTUBE))
     }
 
     LaunchedEffect(sharedUrl) {
         if (sharedUrl != null) {
             pendingUrl = sharedUrl
             playerExpanded = false
-            pagerState.scrollToPage(MainTab.DOWNLOADS.ordinal)
+            pagerState.scrollToPage(pageOf(MainTab.DOWNLOADS))
             onSharedUrlConsumed()
         }
     }
     LaunchedEffect(openPlayerTick) {
         if (openPlayerTick > 0) {
             playerExpanded = true
-            pagerState.scrollToPage(if (playingPodcast) MainTab.PODCASTS.ordinal else MainTab.MUSIC.ordinal)
+            pagerState.scrollToPage(pageOf(if (playingPodcast) MainTab.PODCASTS else MainTab.MUSIC))
         }
     }
     LaunchedEffect(player.hasMedia) { if (!player.hasMedia) playerExpanded = false }
 
     // Иконки статус-бара: тёмные на светлой теме, светлые на тёмной и поверх видео
-    val darkChrome = LocalDarkTheme.current || videoOpen
+    val shortsOpen by com.offplayer.app.youtube.YouTubeNav.shortsOpen.collectAsStateWithLifecycle()
+    val shortsChrome = shortsOpen && tab == MainTab.YOUTUBE
+    val darkChrome = LocalDarkTheme.current || videoOpen || shortsChrome
+    // Shorts всегда в портретной ориентации; ушли из Shorts — ориентация снова свободная (если не открыт видеоплеер)
+    LaunchedEffect(shortsChrome) {
+        val activity = context.findActivity() ?: return@LaunchedEffect
+        // Планшет может смотреть Shorts и в альбомной ориентации — ролик вписывается по высоте
+        val tablet = activity.resources.configuration.smallestScreenWidthDp >= 600
+        if (shortsChrome && !tablet) activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+        else if (!VideoController.open.value) activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+    }
     LaunchedEffect(darkChrome) {
         val activity = context.findActivity() as? ComponentActivity ?: return@LaunchedEffect
         val style = if (darkChrome) SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
@@ -254,15 +302,23 @@ fun MainScreen(
                     }
                     // Видео, играющее в фоне, — свой мини-плеер на вкладке «Видео»
                     AnimatedVisibility(
-                        visible = tab == MainTab.VIDEO && videoUi.hasMedia && !videoOpen,
+                        // Свёрнутый ролик YouTube играет дальше — его мини-плеер и на вкладке YouTube
+                        // В ленте Shorts мини-плеер прячется под меню, как на вкладке «Музыка»
+                        visible = (tab == MainTab.VIDEO || (tab == MainTab.YOUTUBE && !shortsChrome)) && videoUi.hasMedia && !videoOpen,
                         enter = slideInVertically(tween(350)) { it } + expandVertically(tween(350), expandFrom = Alignment.Top) + fadeIn(tween(250)),
                         exit = slideOutVertically(tween(300)) { it } + shrinkVertically(tween(300), shrinkTowards = Alignment.Top) + fadeOut(tween(250)),
                     ) {
                         VideoMiniPlayer(videoUi)
                     }
                     CompactNavBar(
+                        tabs = tabs,
+                        black = shortsChrome,
                         selected = tab,
-                        onSelect = { t -> scope.launch { pagerState.animateScrollToPage(t.ordinal) } },
+                        onSelect = { t ->
+                            // Повторное нажатие на вкладку YouTube — к началу «Главной», как в приложении YouTube
+                            if (t == tab && t == MainTab.YOUTUBE) com.offplayer.app.youtube.YouTubeNav.homeTop.value++
+                            scope.launch { pagerState.animateScrollToPage(pageOf(t)) }
+                        },
                         modifier = Modifier.zIndex(1f),
                     )
                 }
@@ -271,16 +327,26 @@ fun MainScreen(
             // Свайп влево/вправо переключает вкладки
             HorizontalPager(
                 state = pagerState,
-                beyondViewportPageCount = MainTab.entries.size - 1, // вкладки не теряют состояние
-                key = { it },
+                beyondViewportPageCount = tabs.size - 1, // вкладки не теряют состояние
+                key = { tabs.getOrElse(it) { MainTab.DOWNLOADS }.name },
+                // В альбомной ориентации экран широкий — вкладка перелистывается уже на 20% ширины, а не на половине
+                flingBehavior = androidx.compose.foundation.pager.PagerDefaults.flingBehavior(
+                    state = pagerState,
+                    snapPositionalThreshold = if (landscapeMain) 0.2f else 0.5f,
+                ),
                 modifier = Modifier.padding(bottom = padding.calculateBottomPadding()),
             ) { page ->
                 val active = page == pagerState.currentPage && !playerExpanded && !videoOpen
                 CompositionLocalProvider(LocalScreenBackEnabled provides active) {
-                    when (MainTab.entries[page]) {
+                    when (tabs.getOrElse(page) { MainTab.DOWNLOADS }) {
                         MainTab.MUSIC -> MusicScreen()
                         MainTab.VIDEO -> VideoScreen()
                         MainTab.PODCASTS -> com.offplayer.app.ui.podcast.PodcastScreen()
+                        MainTab.YOUTUBE -> com.offplayer.app.ui.youtube.YouTubeScreen(active = active) { url ->
+                            // Как «Поделиться» из приложения YouTube: ссылка уходит на вкладку «Загрузки»
+                            pendingUrl = url
+                            scope.launch { pagerState.animateScrollToPage(pageOf(MainTab.DOWNLOADS)) }
+                        }
                         MainTab.DOWNLOADS -> DownloadScreen(pendingUrl, onUrlConsumed = { pendingUrl = null })
                     }
                 }
@@ -317,7 +383,10 @@ fun MainScreen(
                 // Свайп вниз — в мини-плеер на вкладке «Видео», звук продолжает играть
                 onMinimize = {
                     VideoController.close(stopPlayback = false)
-                    scope.launch { pagerState.animateScrollToPage(MainTab.VIDEO.ordinal) }
+                    // Ролик YouTube сворачивается на вкладку YouTube, файл — на вкладку «Видео»
+                    val stream = com.offplayer.app.youtube.YouTubeStreams.isStream(videoUi.videoId)
+                    val target = if (stream && MainTab.YOUTUBE in tabs) MainTab.YOUTUBE else MainTab.VIDEO
+                    scope.launch { pagerState.animateScrollToPage(pageOf(target)) }
                 },
             )
         }
@@ -334,6 +403,7 @@ fun MainScreen(
     BackHandler(videoOpen) { closeVideo() }
 
     DeleteMediaHost()
+    StorageMoveHost()
     // Палитры текущего и соседних треков считаются заранее — цвет готов до показа обложки
     com.offplayer.app.ui.music.PrefetchArtColors(player)
 
@@ -410,27 +480,32 @@ private fun DownloadDoneBanner() {
  * крайние значки не прижимались к краям экрана.
  */
 @Composable
-private fun CompactNavBar(selected: MainTab, onSelect: (MainTab) -> Unit, modifier: Modifier = Modifier) {
+private fun CompactNavBar(tabs: List<MainTab>, selected: MainTab, onSelect: (MainTab) -> Unit, modifier: Modifier = Modifier, black: Boolean = false) {
     // Содержимое центрируется по всей высоте панели вместе с системной зоной жестов,
     // поэтому отступы над значками и под подписями одинаковые
     val navInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    Surface(color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = modifier) {
+    // В ленте Shorts меню чёрное в любой теме, как в YouTube
+    Surface(color = if (black) Color.Black else MaterialTheme.colorScheme.surfaceContainerLow, modifier = modifier) {
         // При навигации жестами полоска системы низкая и почти касается подписей —
         // тогда значки и подписи стоят над ней с собственным отступом
         val gestureNav = navInset in 1.dp..32.dp
         Row(
             Modifier
                 .fillMaxWidth()
-                .height(if (gestureNav) 64.dp + navInset else 60.dp + navInset)
+                .height(if (gestureNav) 54.dp + navInset else 52.dp + navInset)
                 // Значки чуть отступают от верхнего края панели
-                .padding(top = 8.dp, bottom = if (gestureNav) navInset else 0.dp)
+                .padding(top = 4.dp, bottom = if (gestureNav) navInset else 0.dp)
                 .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            MainTab.entries.forEach { t ->
+            tabs.forEach { t ->
                 val isSelected = t == selected
                 val color by animateColorAsState(
-                    if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                    when {
+                        black -> if (isSelected) Color.White else Color.White.copy(alpha = 0.6f)
+                        isSelected -> MaterialTheme.colorScheme.onSurface
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                    },
                     label = "navColor",
                 )
                 val scale by animateFloatAsState(if (isSelected) 1.08f else 1f, label = "navScale")
@@ -446,12 +521,12 @@ private fun CompactNavBar(selected: MainTab, onSelect: (MainTab) -> Unit, modifi
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
                 ) {
-                    Icon(t.icon, null, tint = color, modifier = Modifier.size(24.dp).scale(scale))
-                    Spacer(Modifier.height(2.dp))
+                    Icon(t.icon, null, tint = color, modifier = Modifier.size(22.dp).scale(scale))
+                    Spacer(Modifier.height(1.dp))
                     Text(
                         t.label,
                         color = color,
-                        fontSize = 11.sp,
+                        fontSize = 10.sp,
                         fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
                         maxLines = 1,
                     )

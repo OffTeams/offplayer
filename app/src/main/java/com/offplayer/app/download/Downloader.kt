@@ -12,6 +12,8 @@ import com.offplayer.app.data.AppSettings
 import com.offplayer.app.data.MediaRepository
 import com.offplayer.app.data.PlaylistStore
 import com.offplayer.app.data.SponsorBlock
+import com.offplayer.app.data.Storage
+import com.offplayer.app.data.StorageLocation
 import com.offplayer.app.data.VideoLibraryStore
 import com.offplayer.app.data.VideoMetaStore
 import com.offplayer.app.model.Chapter
@@ -116,9 +118,17 @@ object Downloader {
     private val _version = MutableStateFlow<String?>(null)
     val ytDlpVersion: StateFlow<String?> = _version.asStateFlow()
 
+    /**
+     * yt-dlp в OFFPlayer работает только с YouTube, YouTube Music и TikTok —
+     * ссылки на другие сайты не принимаются, хотя yt-dlp их и поддерживает.
+     */
     fun isSupportedUrl(url: String): Boolean =
-        Regex("""^https?://([\w-]+\.)*(youtube\.com|youtu\.be|youtube-nocookie\.com)/""", RegexOption.IGNORE_CASE)
+        Regex("""^https?://([\w-]+\.)*(youtube\.com|youtu\.be|youtube-nocookie\.com|tiktok\.com)/""", RegexOption.IGNORE_CASE)
             .containsMatchIn(url.trim())
+
+    /** Ссылка TikTok (tiktok.com, vm.tiktok.com, vt.tiktok.com). */
+    fun isTikTokUrl(url: String): Boolean =
+        Regex("""^https?://([\w-]+\.)*tiktok\.com/""", RegexOption.IGNORE_CASE).containsMatchIn(url.trim())
 
     /** Ссылка содержит плейлист (страница плейлиста или видео внутри плейлиста). */
     fun isPlaylistUrl(url: String): Boolean = url.contains("list=") || url.contains("/playlist")
@@ -239,9 +249,12 @@ object Downloader {
 
     suspend fun fetchQuickInfo(url: String): QuickInfo? = withContext(Dispatchers.IO) {
         runCatching {
-            val id = Regex("""(?:v=|youtu\.be/|shorts/|live/)([\w-]{11})""").find(url)?.groupValues?.get(1)
+            val tiktok = isTikTokUrl(url)
+            val id = if (tiktok) null else Regex("""(?:v=|youtu\.be/|shorts/|live/)([\w-]{11})""").find(url)?.groupValues?.get(1)
             val target = if (id != null) "https://www.youtube.com/watch?v=$id" else url.replace("music.youtube.com", "www.youtube.com")
-            val conn = (java.net.URL("https://www.youtube.com/oembed?format=json&url=" + java.net.URLEncoder.encode(target, "UTF-8"))
+            // У TikTok свой oEmbed — тоже без yt-dlp и за доли секунды
+            val endpoint = if (tiktok) "https://www.tiktok.com/oembed?url=" else "https://www.youtube.com/oembed?format=json&url="
+            val conn = (java.net.URL(endpoint + java.net.URLEncoder.encode(target.trim(), "UTF-8"))
                 .openConnection() as java.net.HttpURLConnection).apply {
                 connectTimeout = 5_000
                 readTimeout = 5_000
@@ -395,6 +408,9 @@ object Downloader {
                 addOption("-f", videoFormat(task.videoHeight, opts.extraAudioLangs))
                 if (opts.extraAudioLangs.isNotEmpty()) addOption("--audio-multistreams")
                 addOption("--merge-output-format", "mp4")
+                // Превью ролика — обложкой внутри mp4: в медиатеке видно его, а не случайный кадр
+                addOption("--embed-thumbnail")
+                addOption("--convert-thumbnails", "jpg")
                 if (opts.subLangs.isNotEmpty()) {
                     addOption("--write-subs")
                     if (opts.autoSubs) addOption("--write-auto-subs")
@@ -526,6 +542,18 @@ object Downloader {
                 }
                 if (error != null) doneMessage += " " + tr(R.string.dl_some_unavailable)
             }
+            // Файл скачивается во внутреннюю память; если в настройках выбрано другое место — переносится туда.
+            // Карту могли вынуть: тогда файлы остаются во внутренней памяти, а в итоге загрузки — пояснение
+            val target = AppSettings.downloadLocation.value
+            if (target != StorageLocation.PHONE_PRIVATE) {
+                if (target !in Storage.available(app)) {
+                    doneMessage += " " + tr(R.string.dl_saved_internal_no_sd)
+                } else {
+                    update(task.id) { it.copy(message = tr(R.string.dl_moving, target.label)) }
+                    val moved = LibraryStore.relocate(savedIds, target)
+                    if (moved.failed > 0) doneMessage += " " + tr(R.string.dl_saved_internal_failed, moved.error.orEmpty())
+                }
+            }
             MediaRepository.refresh(app)
             update(task.id) {
                 it.copy(status = DownloadStatus.DONE, progress = 1f, title = doneTitle, message = doneMessage, result = result)
@@ -570,7 +598,7 @@ object Downloader {
         val parts = ArrayList<String>()
         if (e.isAudio) {
             parts += ext.ifEmpty { tr(R.string.audio) }
-            bitrateKbps(LibraryStore.fileOf(e))?.let { parts += tr(R.string.kbps, it) }
+            LibraryStore.fileOf(e)?.let { bitrateKbps(it) }?.let { parts += tr(R.string.kbps, it) }
         } else {
             parts += tr(R.string.tab_video)
             if (e.height > 0) parts += "${minOf(e.width, e.height)}p"
@@ -629,7 +657,9 @@ object Downloader {
 
     /** Эпизоды из info.json и отрезки SponsorBlock — в офлайн-хранилище по id видео. */
     private suspend fun saveVideoMeta(mediaId: Long, file: File, info: JSONObject?, opts: DownloadOptions) {
-        val youtubeId = info?.optString("id")?.ifBlank { null }
+        // SponsorBlock знает только ролики YouTube: id ролика TikTok сюда не попадает
+        val fromYouTube = info?.optString("extractor_key")?.startsWith("Youtube", ignoreCase = true) ?: true
+        val youtubeId = if (!fromYouTube) null else info?.optString("id")?.ifBlank { null }
             ?: Regex("""\[([\w-]{11})]$""").find(file.nameWithoutExtension)?.groupValues?.get(1)
         val chapters = if (opts.chapters) parseChapters(info) else emptyList()
         val segments = if (opts.sponsorBlock && youtubeId != null) SponsorBlock.fetch(youtubeId).orEmpty() else emptyList()

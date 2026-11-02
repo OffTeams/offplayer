@@ -18,7 +18,7 @@
     <string name="selected">選択済み</string>
     <string name="more">その他</string>
     <string name="pip_unsupported">この端末はピクチャー・イン・ピクチャーに対応していません</string>
-    <string name="share_unsupported">YouTube と YouTube Music のリンクのみ対応しています</string>
+    <string name="share_unsupported">YouTube、YouTube Music、TikTok のリンクに対応しています</string>
     <string name="device_storage">端末のストレージ</string>
     <string name="unknown_album">アルバムなし</string>
     <string name="unknown_artist">不明なアーティスト</string>
@@ -148,7 +148,7 @@
     <string name="quality_best">最高画質</string>
     <string name="action_clear">クリア</string>
     <string name="settings">設定</string>
-    <string name="link_hint">YouTube または YouTube Music のリンク</string>
+    <string name="link_hint">YouTube、YouTube Music、TikTok のリンク</string>
     <string name="clipboard_empty">クリップボードが空です</string>
     <string name="action_paste">貼り付け</string>
     <string name="link_unsupported">対応リンク: youtube.com、youtu.be、music.youtube.com</string>

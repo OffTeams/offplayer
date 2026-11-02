@@ -31,6 +31,7 @@ import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.DeleteForever
+import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Movie
 import androidx.compose.material.icons.rounded.MoreVert
@@ -147,6 +148,8 @@ val LocalScreenBackEnabled = compositionLocalOf { true }
 object UiEvents {
     val addToPlaylist = MutableStateFlow<List<Long>?>(null)
     val delete = MutableStateFlow<DeleteRequest?>(null)
+    /** Окно «Где хранить» для файлов медиатеки (id своих записей). */
+    val move = MutableStateFlow<List<Long>?>(null)
     val reveal = MutableStateFlow<RevealRequest?>(null)
     val openDownloads = MutableStateFlow(0)
     /** Загрузка завершилась, пока приложение открыто, — показать плашку внутри приложения. */
@@ -326,6 +329,7 @@ fun TrackMenu(track: Track, extraMenu: @Composable ColumnScope.(dismiss: () -> U
                 },
             )
             extraMenu { open = false }
+            if (!track.isDevice) StorageMenuItem(listOf(track.id)) { open = false }
             DropdownMenuItem(
                 text = { Text(if (track.isDevice) tr(R.string.delete_from_device) else tr(R.string.action_delete), color = MaterialTheme.colorScheme.error) },
                 leadingIcon = { Icon(Icons.Rounded.DeleteForever, null, tint = MaterialTheme.colorScheme.error) },
@@ -336,6 +340,19 @@ fun TrackMenu(track: Track, extraMenu: @Composable ColumnScope.(dismiss: () -> U
             )
         }
     }
+}
+
+/** Пункт меню «Где хранить…» — только для файлов медиатеки (не для файлов устройства). */
+@Composable
+fun StorageMenuItem(ids: List<Long>, dismiss: () -> Unit) {
+    DropdownMenuItem(
+        text = { Text(tr(R.string.move_menu)) },
+        leadingIcon = { Icon(Icons.Rounded.Storage, null) },
+        onClick = {
+            dismiss()
+            UiEvents.move.value = ids
+        },
+    )
 }
 
 @Composable

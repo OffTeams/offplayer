@@ -166,7 +166,9 @@ fun ShareSheet(url: String, onClose: () -> Unit, onOpenApp: () -> Unit) {
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text(
-                        info?.title ?: quick?.title ?: if (loading) tr(R.string.dl_fetching_info) else tr(R.string.download_from_youtube),
+                        info?.title ?: quick?.title ?: if (loading) tr(R.string.dl_fetching_info)
+                        else if (com.offplayer.app.download.Downloader.isTikTokUrl(url)) tr(R.string.download_from_tiktok)
+                        else tr(R.string.download_from_youtube),
                         style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
                         maxLines = 2, overflow = TextOverflow.Ellipsis,
                     )

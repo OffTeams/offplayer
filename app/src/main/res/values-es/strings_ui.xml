@@ -18,7 +18,7 @@
     <string name="selected">Seleccionado</string>
     <string name="more">Más</string>
     <string name="pip_unsupported">Este dispositivo no admite imagen en imagen</string>
-    <string name="share_unsupported">Solo se admiten enlaces de YouTube y YouTube Music</string>
+    <string name="share_unsupported">Se admiten enlaces de YouTube, YouTube Music y TikTok</string>
     <string name="device_storage">Almacenamiento del dispositivo</string>
     <string name="unknown_album">Sin álbum</string>
     <string name="unknown_artist">Artista desconocido</string>
@@ -148,7 +148,7 @@
     <string name="quality_best">La mejor</string>
     <string name="action_clear">Borrar</string>
     <string name="settings">Ajustes</string>
-    <string name="link_hint">Enlace de YouTube o YouTube Music</string>
+    <string name="link_hint">Enlace de YouTube, YouTube Music o TikTok</string>
     <string name="clipboard_empty">El portapapeles está vacío</string>
     <string name="action_paste">Pegar</string>
     <string name="link_unsupported">Enlaces admitidos: youtube.com, youtu.be y music.youtube.com</string>

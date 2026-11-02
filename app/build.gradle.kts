@@ -17,8 +17,15 @@ android {
         applicationId = "com.offplayer.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 42
-        versionName = "1.16.0"
+        versionCode = 43
+        versionName = "1.17.0"
+
+        // Тестовая сборка: -PtestVersion=1.16.0.1.1 — отдельный пакет, ставится рядом с основным OFFPlayer
+        // и не меняет нумерацию релизов. Пакет можно переопределить через -PtestPackage=…
+        (findProperty("testVersion") as String?)?.let { v ->
+            applicationId = (findProperty("testPackage") as String?) ?: "com.offplayer.build.app"
+            versionName = v
+        }
     }
 
     // Собственная подпись релиза: ключ в keystore/, пароли в keystore.properties (не коммитятся)
@@ -61,6 +68,8 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // NewPipeExtractor использует java.nio и java.time, которых нет на Android ниже 13
+        isCoreLibraryDesugaringEnabled = true
     }
 
     buildFeatures {
@@ -108,7 +117,12 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-service:2.9.1")
 
     val media3 = "1.7.1"
+    // Вкладка YouTube: списки, поиск, каналы и потоки роликов (как в NewPipe)
+    implementation("com.github.teamnewpipe:NewPipeExtractor:v0.26.5")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.1.5")
     implementation("androidx.media3:media3-exoplayer:$media3")
+    // Прямые эфиры YouTube во вкладке YouTube приходят как HLS
+    implementation("androidx.media3:media3-exoplayer-hls:$media3")
     implementation("androidx.media3:media3-session:$media3")
     implementation("androidx.media3:media3-ui:$media3")
 

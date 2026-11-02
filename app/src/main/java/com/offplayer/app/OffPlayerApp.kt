@@ -25,6 +25,7 @@ class OffPlayerApp : Application(), ImageLoaderFactory {
         VideoLibraryStore.init(this)
         VideoMetaStore.init(this)
         LibraryStore.init(this)
+        com.offplayer.app.youtube.OnlineStore.init(this)
         com.offplayer.app.data.PodcastProgress.init(this)
         com.offplayer.app.data.NetworkState.init(this)
         com.offplayer.app.update.AppUpdater.init(this)

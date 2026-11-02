@@ -49,6 +49,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoStories
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DeleteForever
+import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.Forward30
 import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
@@ -234,6 +235,18 @@ fun PodcastScreen() {
     var searching by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
     BackHandler(LocalScreenBackEnabled.current && searching) { searching = false; query = "" }
+    // «Онлайн» — сохранённые ролики YouTube (плейлисты вкладки «Подкасты»); без интернета скрыт
+    val online by com.offplayer.app.data.NetworkState.online.collectAsStateWithLifecycle()
+    val onlineLists by com.offplayer.app.youtube.OnlineStore.playlists.collectAsStateWithLifecycle()
+    val hasOnline = online && onlineLists.any { it.tab == com.offplayer.app.youtube.OnlineTab.PODCASTS }
+    var onlineView by rememberSaveable { mutableStateOf(false) }
+    var onlineOpen by rememberSaveable { mutableStateOf<String?>(null) }
+    if (!online) onlineView = false
+    BackHandler(LocalScreenBackEnabled.current && onlineOpen != null) { onlineOpen = null }
+    onlineOpen?.let { id ->
+        com.offplayer.app.ui.youtube.OnlinePlaylistScreen(id, onBack = { onlineOpen = null })
+        return
+    }
     val kinds = remember(podcasts, overrides) { podcasts.associate { it.id to PodcastKind.of(it, overrides) } }
     val shown = remember(podcasts, query, filter, kinds) {
         podcasts.filter {
@@ -264,7 +277,7 @@ fun PodcastScreen() {
             },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
         )
-        if (podcasts.isEmpty()) {
+        if (podcasts.isEmpty() && !hasOnline) {
             EmptyState(
                 Icons.Rounded.Podcasts, tr(R.string.no_podcasts),
                 tr(R.string.no_podcasts_desc),
@@ -278,8 +291,13 @@ fun PodcastScreen() {
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.padding(bottom = 4.dp),
         ) {
-            item { CategoryChip(tr(R.string.all), filter == null) { filter = null } }
-            items(present) { k -> CategoryChip(k.plural, filter == k) { filter = if (filter == k) null else k } }
+            item { CategoryChip(tr(R.string.all), filter == null && !onlineView) { filter = null; onlineView = false } }
+            if (hasOnline) item { CategoryChip(tr(R.string.sec_online), onlineView) { onlineView = !onlineView } }
+            items(present) { k -> CategoryChip(k.plural, filter == k && !onlineView) { onlineView = false; filter = if (filter == k) null else k } }
+        }
+        if (onlineView) {
+            com.offplayer.app.ui.youtube.OnlinePlaylistsList(query, com.offplayer.app.youtube.OnlineTab.PODCASTS) { onlineOpen = it }
+            return@Column
         }
         // Выбор нескольких: долгое нажатие начинает выбор, затем нажатия отмечают выпуски
         var selected by remember { mutableStateOf(setOf<Long>()) }
@@ -295,6 +313,10 @@ fun PodcastScreen() {
                 onSelectAll = { selected = if (selected.size == shown.size) emptySet() else shown.map { it.id }.toSet() },
             ) {
                 SelectionAction(Icons.Rounded.Category, tr(R.string.category), onClick = { choosingKind = true }, modifier = Modifier.weight(1f))
+                SelectionAction(
+                    Icons.Rounded.Storage, tr(R.string.move_short), modifier = Modifier.weight(1f),
+                    onClick = { UiEvents.move.value = selected.toList(); selected = emptySet() },
+                )
                 SelectionAction(
                     Icons.Rounded.Delete, tr(R.string.action_delete), danger = true, modifier = Modifier.weight(1f),
                     onClick = {
@@ -427,6 +449,7 @@ private fun PodcastRow(
                     leadingIcon = { Icon(Icons.Rounded.Category, null) },
                     onClick = { menu = false; choosing = true },
                 )
+                com.offplayer.app.ui.StorageMenuItem(listOf(track.id)) { menu = false }
                 HorizontalDivider()
                 DropdownMenuItem(
                     text = { Text(tr(R.string.action_delete), color = MaterialTheme.colorScheme.error) },

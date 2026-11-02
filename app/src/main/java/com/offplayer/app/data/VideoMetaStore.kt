@@ -36,6 +36,14 @@ object VideoMetaStore {
 
     fun get(videoId: Long): VideoMeta? = _meta.value[videoId]
 
+    /** id роликов YouTube, играющих онлайн: их эпизоды и отрезки живут только в памяти и не сохраняются. */
+    private val transientIds = java.util.concurrent.ConcurrentHashMap.newKeySet<Long>()
+
+    fun putTransient(videoId: Long, meta: VideoMeta) {
+        transientIds += videoId
+        _meta.update { it + (videoId to meta) }
+    }
+
     fun put(videoId: Long, meta: VideoMeta) {
         _meta.update { it + (videoId to meta) }
         save()
@@ -61,7 +69,7 @@ object VideoMetaStore {
     }
 
     private fun save() {
-        val snapshot = _meta.value
+        val snapshot = _meta.value - transientIds
         io.launch {
             runCatching {
                 val root = JSONObject()

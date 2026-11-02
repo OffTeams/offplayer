@@ -41,7 +41,10 @@ abstract class BasePlaybackService : MediaSessionService() {
                 /* handleAudioFocus = */ true,
             )
             .setHandleAudioBecomingNoisy(AppSettings.pauseOnNoisy.value)
-            .setWakeMode(C.WAKE_MODE_LOCAL)
+            // Ролики YouTube играют по сети: Wi-Fi не должен засыпать при выключенном экране
+            .setWakeMode(C.WAKE_MODE_NETWORK)
+            // Онлайн-ролики YouTube (раздельные видео и звук), остальное — как раньше
+            .setMediaSourceFactory(com.offplayer.app.youtube.StreamMediaSourceFactory(this))
             .build()
         val activity = PendingIntent.getActivity(
             this, sessionId.hashCode(), sessionActivityIntent(),

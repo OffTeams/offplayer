@@ -18,7 +18,7 @@
     <string name="selected">Ausgewählt</string>
     <string name="more">Mehr</string>
     <string name="pip_unsupported">Dieses Gerät unterstützt Bild-im-Bild nicht</string>
-    <string name="share_unsupported">Nur YouTube- und YouTube-Music-Links werden unterstützt</string>
+    <string name="share_unsupported">Unterstützt werden Links von YouTube, YouTube Music und TikTok</string>
     <string name="device_storage">Gerätespeicher</string>
     <string name="unknown_album">Kein Album</string>
     <string name="unknown_artist">Unbekannter Interpret</string>
@@ -148,7 +148,7 @@
     <string name="quality_best">Beste</string>
     <string name="action_clear">Leeren</string>
     <string name="settings">Einstellungen</string>
-    <string name="link_hint">YouTube- oder YouTube-Music-Link</string>
+    <string name="link_hint">Link zu YouTube, YouTube Music oder TikTok</string>
     <string name="clipboard_empty">Zwischenablage ist leer</string>
     <string name="action_paste">Einfügen</string>
     <string name="link_unsupported">Unterstützte Links: youtube.com, youtu.be und music.youtube.com</string>

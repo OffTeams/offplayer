@@ -547,6 +547,7 @@ private fun VideoRow(
                     leadingIcon = { Icon(Icons.Rounded.RemoveCircleOutline, null) },
                     onClick = { menu = false; onRemove() },
                 )
+                if (!video.isDevice) com.offplayer.app.ui.StorageMenuItem(listOf(video.id)) { menu = false }
                 DropdownMenuItem(
                     text = { Text(if (video.isDevice) tr(R.string.delete_from_device) else tr(R.string.action_delete), color = MaterialTheme.colorScheme.error) },
                     leadingIcon = { Icon(Icons.Rounded.DeleteForever, null, tint = MaterialTheme.colorScheme.error) },

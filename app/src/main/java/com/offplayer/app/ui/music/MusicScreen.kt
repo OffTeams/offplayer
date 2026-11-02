@@ -86,6 +86,7 @@ import com.offplayer.app.ui.DevicePermissionPrompt
 import com.offplayer.app.ui.UiEvents
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.rounded.DeleteForever
+import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.SelectAll
 import androidx.compose.material.icons.rounded.RemoveDone
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
@@ -106,7 +107,7 @@ import com.offplayer.app.ui.plural
 import com.offplayer.app.ui.tracksCount
 
 enum class MusicSection(@androidx.annotation.StringRes private val res: Int) {
-    TRACKS(R.string.sec_tracks), ALBUMS(R.string.sec_albums), ARTISTS(R.string.sec_artists), PLAYLISTS(R.string.sec_playlists), MIXES(R.string.sec_mixes), DEVICE(R.string.sec_device); val label: String get() = tr(res)
+    TRACKS(R.string.sec_tracks), ALBUMS(R.string.sec_albums), ARTISTS(R.string.sec_artists), PLAYLISTS(R.string.sec_playlists), ONLINE(R.string.sec_online), DEVICE(R.string.sec_device); val label: String get() = tr(res)
 }
 
 enum class TrackSort(@androidx.annotation.StringRes private val res: Int) {
@@ -117,6 +118,8 @@ sealed interface MusicDest {
     data class AlbumDest(val albumId: Long, val name: String) : MusicDest
     data class ArtistDest(val name: String) : MusicDest
     data class PlaylistDest(val id: String) : MusicDest
+    /** Онлайн-плейлист (ролики YouTube, играют звуком). */
+    data class OnlineDest(val id: String) : MusicDest
 }
 
 data class AlbumInfo(val albumId: Long, val name: String, val artist: String, val tracks: List<Track>)
@@ -144,8 +147,10 @@ fun MusicScreen() {
     var query by rememberSaveable { mutableStateOf("") }
 
     val deviceMode by AppSettings.deviceMedia.collectAsStateWithLifecycle()
-    val sections = remember(deviceMode) {
-        MusicSection.entries.filter { it != MusicSection.DEVICE || deviceMode == DeviceMediaMode.SEPARATE }
+    // Без интернета раздел «Онлайн» скрыт — вернётся сам, когда сеть появится
+    val online by com.offplayer.app.data.NetworkState.online.collectAsStateWithLifecycle()
+    val sections = remember(deviceMode, online) {
+        MusicSection.entries.filter { (it != MusicSection.DEVICE || deviceMode == DeviceMediaMode.SEPARATE) && (it != MusicSection.ONLINE || online) }
     }
     LaunchedEffect(sections) { if (section !in sections) section = MusicSection.TRACKS }
     var highlight by remember { mutableStateOf<Long?>(null) }
@@ -162,7 +167,8 @@ fun MusicScreen() {
             }
             DownloadResult.Kind.MIX -> {
                 searching = false; query = ""
-                section = MusicSection.MIXES
+                // Миксы теперь среди обычных плейлистов
+                section = MusicSection.PLAYLISTS
                 dest = MusicDest.PlaylistDest(r.id)
             }
             else -> return@LaunchedEffect
@@ -250,8 +256,9 @@ fun MusicScreen() {
             MusicSection.DEVICE -> DeviceMusicSection(query, player.trackId)
             MusicSection.ALBUMS -> AlbumsSection(filtered) { dest = MusicDest.AlbumDest(it.albumId, it.name) }
             MusicSection.ARTISTS -> ArtistsSection(filtered) { dest = MusicDest.ArtistDest(it.name) }
-            MusicSection.PLAYLISTS -> PlaylistsSection(query, mixes = false) { dest = MusicDest.PlaylistDest(it.id) }
-            MusicSection.MIXES -> PlaylistsSection(query, mixes = true) { dest = MusicDest.PlaylistDest(it.id) }
+            // Скачанные плейлисты и миксы — вместе; «Онлайн» — сохранённые ролики YouTube (играют звуком)
+            MusicSection.PLAYLISTS -> PlaylistsSection(query, mixes = null) { dest = MusicDest.PlaylistDest(it.id) }
+            MusicSection.ONLINE -> com.offplayer.app.ui.youtube.OnlinePlaylistsList(query, com.offplayer.app.youtube.OnlineTab.MUSIC) { dest = MusicDest.OnlineDest(it) }
         }
     }
 }
@@ -285,6 +292,9 @@ private fun TracksSection(tracks: List<Track>, currentId: Long?, highlight: Long
                 onPlay = { MusicController.playTracks(chosen, respectOrder = true); selected = emptySet() },
                 onQueue = { MusicController.addToQueue(chosen); selected = emptySet() },
                 onAddToPlaylist = { UiEvents.addToPlaylist.value = chosen.map { it.id }; selected = emptySet() },
+                onMove = chosen.filter { !it.isDevice }.takeIf { it.isNotEmpty() }?.let { own ->
+                    { UiEvents.move.value = own.map { it.id }; selected = emptySet() }
+                },
                 onDelete = {
                     UiEvents.delete.value = com.offplayer.app.ui.DeleteRequest.tracks(chosen, tracksCount(chosen.size))
                     selected = emptySet()
@@ -382,6 +392,8 @@ private fun SelectionBar(
     onPlay: () -> Unit,
     onQueue: () -> Unit,
     onAddToPlaylist: () -> Unit,
+    /** null — среди выбранных нет файлов медиатеки, переносить нечего. */
+    onMove: (() -> Unit)?,
     onDelete: () -> Unit,
 ) {
     androidx.compose.material3.Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, shadowElevation = 4.dp) {
@@ -404,6 +416,7 @@ private fun SelectionBar(
                 SelectionAction(Icons.Rounded.PlayArrow, tr(R.string.action_listen), enabled = count >= 2, onClick = onPlay, modifier = Modifier.weight(1f))
                 SelectionAction(Icons.AutoMirrored.Rounded.QueueMusic, tr(R.string.to_queue), onClick = onQueue, modifier = Modifier.weight(1f))
                 SelectionAction(Icons.AutoMirrored.Rounded.PlaylistAdd, tr(R.string.to_playlist), onClick = onAddToPlaylist, modifier = Modifier.weight(1f))
+                if (onMove != null) SelectionAction(Icons.Rounded.Storage, tr(R.string.move_short), onClick = onMove, modifier = Modifier.weight(1f))
                 SelectionAction(Icons.Rounded.Delete, tr(R.string.action_delete), onClick = onDelete, modifier = Modifier.weight(1f), danger = true)
             }
         }
@@ -558,23 +571,23 @@ private fun ArtistsSection(tracks: List<Track>, onOpen: (ArtistInfo) -> Unit) {
 }
 
 @Composable
-private fun PlaylistsSection(query: String, mixes: Boolean, onOpen: (Playlist) -> Unit) {
+private fun PlaylistsSection(query: String, mixes: Boolean?, onOpen: (Playlist) -> Unit) {
     val playlists by PlaylistStore.playlists.collectAsStateWithLifecycle()
     val tracks by MediaRepository.tracks.collectAsStateWithLifecycle()
     var creating by remember { mutableStateOf(false) }
     // «Плейлисты» — созданные вами, «Миксы» — плейлисты, скачанные целиком с YouTube / YouTube Music
     val shown = remember(playlists, query, mixes) {
-        playlists.filter { it.isMix == mixes && (query.isBlank() || it.name.contains(query, true)) }
+        playlists.filter { (mixes == null || it.isMix == mixes) && (query.isBlank() || it.name.contains(query, true)) }
     }
 
-    if (mixes && shown.isEmpty()) {
+    if (mixes == true && shown.isEmpty()) {
         EmptyState(
             Icons.AutoMirrored.Rounded.PlaylistPlay, tr(R.string.no_mixes),
             tr(R.string.no_mixes_desc),
         )
         return
     }
-    if (!mixes && shown.isEmpty()) {
+    if (mixes != true && shown.isEmpty()) {
         Column(Modifier.fillMaxSize()) {
             OutlinedButton(
                 onClick = { creating = true },
@@ -609,7 +622,7 @@ private fun PlaylistsSection(query: String, mixes: Boolean, onOpen: (Playlist) -
         verticalArrangement = Arrangement.spacedBy(18.dp),
         modifier = Modifier.fillMaxSize(),
     ) {
-        if (!mixes) item(span = { GridItemSpan(maxLineSpan) }) {
+        if (mixes != true) item(span = { GridItemSpan(maxLineSpan) }) {
             OutlinedButton(onClick = { creating = true }, modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Rounded.Add, null)
                 Spacer(Modifier.width(6.dp))
@@ -644,6 +657,7 @@ private fun PlaylistsSection(query: String, mixes: Boolean, onOpen: (Playlist) -
 private fun CollectionScreen(dest: MusicDest, allTracks: List<Track>, currentId: Long?, onBack: () -> Unit) {
     when (dest) {
         is MusicDest.PlaylistDest -> PlaylistScreen(dest.id, currentId, onBack)
+        is MusicDest.OnlineDest -> com.offplayer.app.ui.youtube.OnlinePlaylistScreen(dest.id, onBack = onBack)
         is MusicDest.AlbumDest -> {
             val list = remember(allTracks, dest) {
                 allTracks.filter { it.albumId == dest.albumId }.sortedWith(compareBy<Track> { it.trackNo }.thenBy { it.title })
@@ -769,6 +783,10 @@ fun PlaylistMenu(playlist: Playlist, onRename: () -> Unit, onDelete: () -> Unit,
                 onClick = { open = false; sortOpen = true })
             DropdownMenuItem(text = { Text(tr(R.string.rename)) }, leadingIcon = { Icon(Icons.Rounded.Edit, null) },
                 onClick = { open = false; onRename() })
+            // Перенос всех скачанных треков плейлиста (файлы устройства не трогаем)
+            playlist.trackIds.filter { it < 0 }.takeIf { it.isNotEmpty() }?.let { own ->
+                com.offplayer.app.ui.StorageMenuItem(own) { open = false }
+            }
             DropdownMenuItem(text = { Text(if (playlist.isMix) tr(R.string.delete_mix) else tr(R.string.delete_playlist)) }, leadingIcon = { Icon(Icons.Rounded.Delete, null) },
                 onClick = { open = false; onDelete() })
             DropdownMenuItem(
