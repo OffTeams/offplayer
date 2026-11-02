@@ -112,4 +112,15 @@
     <string name="yt_push">Notifications YouTube</string>
     <string name="yt_push_desc">Nouvelles vidéos des abonnements et réponses, en notifications de l’app</string>
     <string name="yt_notifications_channel">Notifications YouTube</string>
+    <string name="yt_hide_replies">Masquer les réponses</string>
+    <string name="yt_more_replies">Afficher plus de réponses</string>
+    <string name="yt_replies_title">Réponses</string>
+    <string name="yt_your_reply">Votre réponse…</string>
+    <string name="yt_all">Tout</string>
+    <string name="yt_reply">Répondre</string>
+    <string name="yt_linked_reply">Réponse ouverte depuis le lien</string>
+    <string name="yt_comments_for">Commentaires de la vidéo « %1$s »</string>
+    <string name="yt_next_up">À suivre</string>
+    <string name="yt_play_next">Lire</string>
+    <string name="yt_autoplay">Lecture automatique</string>
 </resources>

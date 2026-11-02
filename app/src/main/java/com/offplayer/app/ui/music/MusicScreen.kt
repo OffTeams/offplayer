@@ -224,6 +224,7 @@ fun MusicScreen() {
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+            windowInsets = com.offplayer.app.ui.stableTopBarInsets(),
         )
         LazyRow(
             contentPadding = PaddingValues(horizontal = 16.dp),
@@ -722,6 +723,7 @@ fun CollectionTopBar(title: String, onBack: () -> Unit, actions: @Composable and
         },
         actions = actions,
         colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+            windowInsets = com.offplayer.app.ui.stableTopBarInsets(),
     )
 }
 

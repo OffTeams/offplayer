@@ -709,7 +709,7 @@ private fun SwitchRow(
 ) {
     SettingRow(icon, title, subtitle, enabled = enabled, onClick = { onChange(!checked) }) {
         Spacer(Modifier.width(12.dp))
-        Switch(checked = checked, onCheckedChange = onChange, enabled = enabled)
+        Switch(checked = checked, onCheckedChange = onChange, enabled = enabled, colors = com.offplayer.app.ui.appSwitchColors())
     }
 }
 

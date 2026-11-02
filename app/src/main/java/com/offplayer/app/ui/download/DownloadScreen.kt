@@ -158,6 +158,7 @@ fun DownloadScreen(pendingUrl: String?, onUrlConsumed: () -> Unit) {
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+            windowInsets = com.offplayer.app.ui.stableTopBarInsets(),
             )
         }
         item {
@@ -454,7 +455,7 @@ private fun OptionSwitch(title: String, subtitle: String, checked: Boolean, onCh
             Text(title, style = MaterialTheme.typography.bodyLarge)
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Switch(checked = checked, onCheckedChange = onChange)
+        Switch(checked = checked, onCheckedChange = onChange, colors = com.offplayer.app.ui.appSwitchColors())
     }
 }
 

@@ -1,5 +1,15 @@
 package com.offplayer.app.ui.youtube
 
+import androidx.compose.foundation.layout.aspectRatio
+
+import androidx.compose.ui.focus.focusRequester
+
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+
+import androidx.compose.foundation.lazy.itemsIndexed
+
+import androidx.compose.ui.draw.drawBehind
+
 import com.offplayer.app.tr
 import com.offplayer.app.R
 
@@ -148,16 +158,60 @@ class CommentsState(val youtubeId: String) {
     var loading by mutableStateOf(false)
     var started by mutableStateOf(false)
 
+    /** Комментарий из оповещения: первая страница запрашивается по ссылке на него, затем открывается его ветка. */
+    var linkParams: String? = null
+    var focusId: String? = null
+    /** Открыть ветку сразу (из плеера) или показать ответ прямо в списке под комментарием (страница комментариев). */
+    var openFocusedThread = true
+    /** Ответ, открытый по ссылке, и id его комментария — в списке он показан сразу под ним. */
+    var linkedReply by mutableStateOf<YtComment?>(null)
+    var linkedParent by mutableStateOf<String?>(null)
+    private var pageById: Map<String, YtComment> = emptyMap()
+
     suspend fun more() {
         if (loading || (started && next == null)) return
         loading = true
-        runCatching { YouTubeActions.comments(youtubeId, next) }.onSuccess { page ->
+        runCatching { YouTubeActions.comments(youtubeId, next, if (!started) linkParams else null) }.onSuccess { page ->
             items += page.items
             if (page.total != null) total = page.total
             next = page.next
+            if (!started) pageById = page.byId
         }
         started = true
         loading = false
+        // Ответ на комментарий: id вида «родитель.ответ» — открываем ветку родителя
+        focusId?.let { f ->
+            focusId = null
+            val parent = f.substringBefore('.')
+            val target = items.firstOrNull { it.id == parent || it.id == f }
+            if (openFocusedThread) target?.let { openThread(it) }
+            else if (f != parent) { linkedParent = parent; linkedReply = pageById[f] }
+        }
+    }
+
+    /** Раскрытые ветки ответов: id комментария → ответы, токен продолжения ветки, идёт ли загрузка. */
+    val replies = androidx.compose.runtime.mutableStateMapOf<String, List<YtComment>>()
+    val repliesNext = androidx.compose.runtime.mutableStateMapOf<String, String?>()
+    val repliesLoading = androidx.compose.runtime.mutableStateMapOf<String, Boolean>()
+
+    /** Открыть ветку (первое нажатие) или догрузить следующие ответы. */
+    suspend fun loadReplies(c: YtComment) {
+        if (repliesLoading[c.id] == true) return
+        val token = if (c.id in replies) repliesNext[c.id] ?: return else c.repliesToken ?: return
+        repliesLoading[c.id] = true
+        runCatching { YouTubeActions.replies(token) }.onSuccess { page ->
+            replies[c.id] = replies[c.id].orEmpty() + page.items
+            repliesNext[c.id] = page.next
+        }
+        repliesLoading[c.id] = false
+    }
+
+    /** Открытая ветка ответов — отдельная страница «Ответы» внутри листа комментариев, как в YouTube. */
+    var thread by mutableStateOf<YtComment?>(null)
+
+    suspend fun openThread(c: YtComment) {
+        thread = c
+        if (c.id !in replies) loadReplies(c)
     }
 }
 
@@ -207,7 +261,11 @@ fun WatchPage(youtubeId: String, modifier: Modifier = Modifier, contentPadding: 
     // 0 — нет, 1 — описание, 2 — комментарии. На планшете они открываются в панели справа (WatchSidePanel)
     val localSheet = remember(youtubeId) { mutableStateOf(0) }
     var sheet by (if (sidePanel) WatchSide.sheet else localSheet)
-    LaunchedEffect(youtubeId) { WatchSide.reset(youtubeId) }
+    LaunchedEffect(youtubeId) {
+        WatchSide.reset(youtubeId)
+        // Из оповещения об ответе — сразу комментарии с нужной веткой
+        if (WatchSide.linkOpen) { WatchSide.linkOpen = false; sheet = 2 }
+    }
     var opening by remember { mutableStateOf<String?>(null) }
     var saving by remember(youtubeId) { mutableStateOf(false) }
     val related = remember(info) { info?.let { NpSource.related(it) }.orEmpty() }
@@ -215,7 +273,12 @@ fun WatchPage(youtubeId: String, modifier: Modifier = Modifier, contentPadding: 
     val typo = MaterialTheme.typography
 
     androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides c.onSurface) {
-    LazyColumn(modifier.background(c.surface), contentPadding = contentPadding) {
+    val pageList = androidx.compose.foundation.lazy.rememberLazyListState()
+    // Листают страницу ролика — значит, выбирают сами: «Следующее видео» отменяется
+    LaunchedEffect(pageList) {
+        snapshotFlow { pageList.isScrollInProgress }.collect { if (it) YouTubeNav.relatedScrolled.value++ }
+    }
+    LazyColumn(modifier.background(c.surface), state = pageList, contentPadding = contentPadding) {
         val i = info
         if (i == null) {
             item { Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
@@ -317,8 +380,19 @@ internal object WatchSide {
     }
 
     /** Комментарии одного ролика общие для карточки слева и панели справа — второй раз не загружаются. */
-    fun commentsFor(youtubeId: String): CommentsState =
-        comments?.takeIf { it.youtubeId == youtubeId } ?: CommentsState(youtubeId).also { comments = it }
+    fun commentsFor(youtubeId: String): CommentsState {
+        // Ролик открыт из оповещения об ответе — список заново, со ссылкой на комментарий
+        val link = com.offplayer.app.youtube.YouTubeNav.linkedComment?.takeIf { it.videoId == youtubeId }
+        if (link != null) {
+            com.offplayer.app.youtube.YouTubeNav.linkedComment = null
+            linkOpen = true
+            return CommentsState(youtubeId).apply { linkParams = link.params; focusId = link.commentId }.also { comments = it }
+        }
+        return comments?.takeIf { it.youtubeId == youtubeId } ?: CommentsState(youtubeId).also { comments = it }
+    }
+
+    /** Открыть комментарии сразу (ролик из оповещения об ответе). */
+    var linkOpen = false
 }
 
 /** Правая панель страницы ролика на планшете: лента похожих, а при открытом описании или комментариях — они. */
@@ -333,7 +407,8 @@ fun WatchSidePanel(youtubeId: String, modifier: Modifier = Modifier, contentPadd
     LaunchedEffect(youtubeId) { if (info == null) info = runCatching { YouTubeStreams.loadInfo(youtubeId) }.getOrNull() }
     androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides c.onSurface) {
         Column(modifier.background(c.surface).padding(contentPadding).padding(top = 8.dp)) {
-            SheetHeader(tr(if (sheet == 1) R.string.yt_description else R.string.yt_comments)) { WatchSide.sheet.value = 0 }
+            if (sheet == 1) SheetHeader(tr(R.string.yt_description), { WatchSide.sheet.value = 0 })
+            else CommentsHeader(WatchSide.commentsFor(youtubeId)) { WatchSide.sheet.value = 0 }
             if (sheet == 1) info.let { i ->
                 if (i == null) Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
                 else DescriptionContent(i, Modifier.weight(1f))
@@ -352,7 +427,11 @@ fun RelatedList(youtubeId: String, modifier: Modifier = Modifier, contentPadding
     val related = remember(info) { info?.let { NpSource.related(it) }.orEmpty() }
     var opening by remember { mutableStateOf<String?>(null) }
     androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides MaterialTheme.colorScheme.onSurface) {
-    LazyColumn(modifier.background(MaterialTheme.colorScheme.surface), contentPadding = contentPadding) {
+    val sideList = androidx.compose.foundation.lazy.rememberLazyListState()
+    LaunchedEffect(sideList) {
+        snapshotFlow { sideList.isScrollInProgress }.collect { if (it) YouTubeNav.relatedScrolled.value++ }
+    }
+    LazyColumn(modifier.background(MaterialTheme.colorScheme.surface), state = sideList, contentPadding = contentPadding) {
         items(related, key = { "side_" + it.id }) { v ->
             Column(Modifier.padding(horizontal = 8.dp)) {
                 VideoCard(
@@ -470,9 +549,18 @@ private fun Stat(value: String, label: String) {
     }
 }
 
+/** Шапка комментариев: «Комментарии» или, в открытой ветке, «← Ответы». */
 @Composable
-private fun SheetHeader(title: String, onDismiss: () -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+private fun CommentsHeader(comments: CommentsState, onDismiss: () -> Unit) {
+    val thread = comments.thread
+    if (thread == null) SheetHeader(tr(R.string.yt_comments), onDismiss)
+    else SheetHeader(tr(R.string.yt_replies_title), onDismiss, onBack = { comments.thread = null })
+}
+
+@Composable
+private fun SheetHeader(title: String, onDismiss: () -> Unit, onBack: (() -> Unit)? = null) {
+    Row(Modifier.fillMaxWidth().padding(start = if (onBack != null) 4.dp else 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (onBack != null) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, tr(R.string.action_back)) }
         Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
         IconButton(onClick = onDismiss) { Icon(Icons.Rounded.Close, tr(R.string.action_close)) }
     }
@@ -484,7 +572,7 @@ private fun SheetHeader(title: String, onDismiss: () -> Unit) {
 @Composable
 fun CommentsSheet(comments: CommentsState, onDismiss: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), sheetMaxWidth = androidx.compose.ui.unit.Dp.Unspecified, containerColor = MaterialTheme.colorScheme.surface, modifier = Modifier.windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.statusBarsIgnoringVisibility).padding(top = 8.dp)) {
-        SheetHeader(tr(R.string.yt_comments), onDismiss)
+        CommentsHeader(comments, onDismiss)
         CommentsContent(comments)
     }
 }
@@ -504,13 +592,61 @@ fun CommentsContent(comments: CommentsState, modifier: Modifier = Modifier, fill
     }
     run {
         Column(modifier.fillMaxWidth().imePadding()) {
+            val lineColor = MaterialTheme.colorScheme.outlineVariant
+            var text by remember { mutableStateOf("") }
+            val inputFocus = remember { androidx.compose.ui.focus.FocusRequester() }
+            // Ответ: поле получает фокус; ответ на ответ начинается с @автора, как в YouTube
+            val replyTo: (YtComment?) -> Unit = { target ->
+                if (!signedIn) needSignIn(context)
+                else {
+                    if (target != null && target.author.isNotEmpty()) text = target.author.let { if (it.startsWith("@")) "$it " else "@$it " }
+                    scope.launch { kotlinx.coroutines.delay(150); runCatching { inputFocus.requestFocus() } }
+                }
+            }
+            // Назад из ветки ответов — к списку комментариев
+            androidx.activity.compose.BackHandler(comments.thread != null) { comments.thread = null }
             LazyColumn(Modifier.fillMaxWidth().then(if (fill) Modifier.weight(1f) else Modifier.weight(1f, fill = false).height(520.dp)), state = list) {
-                items(comments.items) { CommentRow(it) }
-                if (comments.loading) item {
+                val thread = comments.thread
+                if (thread != null) {
+                    // Ветка ответов, как в YouTube: комментарий сверху, ответы под ним, соединены линиями дерева
+                    val replies = comments.replies[thread.id].orEmpty()
+                    val more = comments.repliesNext[thread.id] != null
+                    val busy = comments.repliesLoading[thread.id] == true
+                    item { Box(Modifier.treeTrunk(lineColor, replies.isNotEmpty() || busy)) { CommentRow(thread, onReply = { replyTo(null) }) } }
+                    itemsIndexed(replies) { i, r ->
+                        val last = i == replies.lastIndex && !more && !busy
+                        Box(Modifier.treeBranch(lineColor, last)) { Box(Modifier.padding(start = 44.dp)) { CommentRow(r, avatarSize = 24.dp, onReply = { replyTo(r) }) } }
+                    }
+                    if (busy) item { Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(Modifier.size(24.dp)) } }
+                    else if (more) item {
+                        Text(
+                            tr(R.string.yt_more_replies), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
+                            modifier = Modifier.padding(start = 56.dp, top = 4.dp, bottom = 12.dp).clip(RoundedCornerShape(12.dp))
+                                .clickable { scope.launch { comments.loadReplies(thread) } }.padding(horizontal = 4.dp, vertical = 4.dp),
+                        )
+                    }
+                } else items(comments.items) { c ->
+                    CommentRow(c, onReply = { scope.launch { comments.openThread(c) }; replyTo(null) })
+                    // Ответ из оповещения — сразу под своим комментарием, как в YouTube
+                    val linked = comments.linkedReply
+                    if (linked != null && comments.linkedParent == c.id) {
+                        Text(tr(R.string.yt_linked_reply), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(start = 60.dp, top = 2.dp))
+                        Box(Modifier.treeBranch(lineColor, true)) { Box(Modifier.padding(start = 44.dp)) { CommentRow(linked, avatarSize = 24.dp, onReply = { scope.launch { comments.openThread(c) }; replyTo(linked) }) } }
+                    }
+                    // «Ответы: N» открывает ветку отдельной страницей
+                    if (c.replies.isNotEmpty() && c.repliesToken != null) Text(
+                        tr(R.string.yt_replies_s, c.replies),
+                        color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
+                        modifier = Modifier.padding(start = 56.dp, bottom = 8.dp).clip(RoundedCornerShape(12.dp))
+                            .clickable { scope.launch { comments.openThread(c) } }
+                            .padding(horizontal = 4.dp, vertical = 4.dp),
+                    )
+                }
+                if (comments.thread == null && comments.loading) item {
                     Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(Modifier.size(24.dp)) }
                 }
             }
-            var text by remember { mutableStateOf("") }
             var sending by remember { mutableStateOf(false) }
             val send = {
                 val t = text.trim()
@@ -518,8 +654,18 @@ fun CommentsContent(comments: CommentsState, modifier: Modifier = Modifier, fill
                 else if (t.isNotEmpty() && !sending) {
                     sending = true
                     scope.launch {
-                        runCatching { YouTubeActions.postComment(comments.youtubeId, t) }
-                            .onSuccess { comments.items.add(0, YtComment(tr(R.string.yt_you), YouTubeAccount.avatar.value, t, "", "", "")); text = "" }
+                        val thread = comments.thread
+                        val params = thread?.replyParams
+                        runCatching {
+                            if (thread != null) YouTubeActions.postReply(params ?: error("Replies are turned off"), t)
+                            else YouTubeActions.postComment(comments.youtubeId, t)
+                        }
+                            .onSuccess {
+                                val mine = YtComment(tr(R.string.yt_you), YouTubeAccount.avatar.value, t, "", "", "")
+                                if (thread != null) comments.replies[thread.id] = comments.replies[thread.id].orEmpty() + mine
+                                else comments.items.add(0, mine)
+                                text = ""
+                            }
                             .onFailure { Toast.makeText(context, tr(R.string.yt_comment_failed, it.message.orEmpty()), Toast.LENGTH_LONG).show() }
                         sending = false
                     }
@@ -527,7 +673,7 @@ fun CommentsContent(comments: CommentsState, modifier: Modifier = Modifier, fill
             }
             TextField(
                 value = text, onValueChange = { text = it },
-                placeholder = { Text(tr(R.string.yt_add_comment)) },
+                placeholder = { Text(tr(if (comments.thread != null) R.string.yt_your_reply else R.string.yt_add_comment)) },
                 trailingIcon = {
                     if (sending) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
                     else if (text.isNotBlank()) IconButton(onClick = send) { Icon(Icons.AutoMirrored.Rounded.Send, tr(R.string.yt_send)) }
@@ -537,18 +683,18 @@ fun CommentsContent(comments: CommentsState, modifier: Modifier = Modifier, fill
                 shape = RoundedCornerShape(24.dp),
                 colors = TextFieldDefaults.colors(focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent),
                 maxLines = 4,
-                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                modifier = Modifier.fillMaxWidth().padding(12.dp).focusRequester(inputFocus),
             )
         }
     }
 }
 
 @Composable
-private fun CommentRow(c: YtComment) {
+private fun CommentRow(c: YtComment, avatarSize: androidx.compose.ui.unit.Dp = 32.dp, onReply: (() -> Unit)? = null) {
     val typo = MaterialTheme.typography
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
-        Avatar(c.avatar, 32.dp)
+        Avatar(c.avatar, avatarSize)
         Column(Modifier.padding(start = 12.dp).weight(1f)) {
             Text(listOf(c.author, c.date).filter { it.isNotEmpty() }.joinToString(" • "), color = muted, style = typo.labelMedium, maxLines = 1)
             Text(linkified(plain(c.text)), style = typo.bodyMedium, modifier = Modifier.padding(top = 2.dp))
@@ -558,11 +704,36 @@ private fun CommentRow(c: YtComment) {
                     if (c.likes.isNotEmpty()) Text(c.likes, color = muted, fontSize = 12.sp, modifier = Modifier.padding(start = 6.dp))
                 }
                 Icon(Icons.Outlined.ThumbDown, null, tint = muted, modifier = Modifier.size(16.dp))
-                Icon(Icons.AutoMirrored.Outlined.Comment, null, tint = muted, modifier = Modifier.size(16.dp))
+                // Ответить: открывает ветку и поле ответа
+                Icon(Icons.AutoMirrored.Outlined.Comment, tr(R.string.yt_reply), tint = muted,
+                    modifier = Modifier.size(16.dp).then(if (onReply != null) Modifier.clickable(onClick = onReply) else Modifier))
             }
-            if (c.replies.isNotEmpty()) Text(tr(R.string.yt_replies_s, c.replies), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
         }
     }
+}
+
+/** Ствол дерева ответов: линия от аватара комментария вниз (x — центр аватара 32 dp при отступе 16 dp). */
+private fun Modifier.treeTrunk(color: Color, show: Boolean) = drawBehind {
+    if (!show) return@drawBehind
+    val x = 32.dp.toPx()
+    drawLine(color, androidx.compose.ui.geometry.Offset(x, 10.dp.toPx() + 36.dp.toPx()), androidx.compose.ui.geometry.Offset(x, size.height), 1.5.dp.toPx())
+}
+
+/** Ветвь к ответу: линия ствола и изгиб к аватару ответа; у последнего ответа ствол заканчивается изгибом. */
+private fun Modifier.treeBranch(color: Color, last: Boolean) = drawBehind {
+    val x = 32.dp.toPx()
+    val avatarY = 10.dp.toPx() + 12.dp.toPx()
+    val avatarX = 60.dp.toPx() - 2.dp.toPx()
+    val r = 12.dp.toPx()
+    val stroke = 1.5.dp.toPx()
+    val path = androidx.compose.ui.graphics.Path().apply {
+        moveTo(x, 0f)
+        lineTo(x, avatarY - r)
+        quadraticTo(x, avatarY, x + r, avatarY)
+        lineTo(avatarX, avatarY)
+    }
+    drawPath(path, color, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
+    if (!last) drawLine(color, androidx.compose.ui.geometry.Offset(x, avatarY - r), androidx.compose.ui.geometry.Offset(x, size.height), stroke)
 }
 
 /** Комментарии отдельного ролика (для Shorts): своё состояние списка. */
@@ -582,7 +753,7 @@ fun SidePanelFor(youtubeId: String, comments: Boolean, onDismiss: () -> Unit, mo
     androidx.activity.compose.BackHandler(onBack = onDismiss)
     androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides c.onSurface) {
         Column(modifier.background(c.surface).padding(top = 8.dp)) {
-            SheetHeader(tr(if (comments) R.string.yt_comments else R.string.yt_description), onDismiss)
+            if (comments) CommentsHeader(state, onDismiss) else SheetHeader(tr(R.string.yt_description), onDismiss)
             if (comments) CommentsContent(state, Modifier.weight(1f), fill = true)
             else info.let { i ->
                 if (i == null) Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
@@ -598,4 +769,43 @@ fun DescriptionSheetFor(youtubeId: String, onDismiss: () -> Unit) {
     var info by remember(youtubeId) { mutableStateOf(YouTubeStreams.info(youtubeId)) }
     LaunchedEffect(youtubeId) { if (info == null) info = runCatching { YouTubeStreams.loadInfo(youtubeId) }.getOrNull() }
     info?.let { DescriptionSheet(it, onDismiss) }
+}
+
+/**
+ * Страница комментариев ролика из оповещения об ответе — как в YouTube: ролик не запускается,
+ * сверху — «Комментарии к видео …» с превью (нажатие открывает ролик), ниже — список с ответом по ссылке.
+ */
+@Composable
+fun CommentsPage(videoId: String, commentId: String, params: String?, onBack: () -> Unit, onOpenVideo: (title: String) -> Unit, modifier: Modifier = Modifier) {
+    val c = MaterialTheme.colorScheme
+    val comments = remember(videoId, commentId) {
+        CommentsState(videoId).apply { linkParams = params; focusId = commentId; openFocusedThread = false }
+    }
+    var title by remember(videoId) { mutableStateOf(YouTubeStreams.info(videoId)?.name) }
+    LaunchedEffect(videoId) { if (title == null) title = runCatching { YouTubeStreams.loadInfo(videoId).name }.getOrNull() }
+    androidx.activity.compose.BackHandler(comments.thread == null, onBack)
+    androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides c.onSurface) {
+        Column(modifier.background(c.surface)) {
+            Row(Modifier.fillMaxWidth().height(52.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { if (comments.thread != null) comments.thread = null else onBack() }) {
+                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, tr(R.string.action_back))
+                }
+                Text(tr(if (comments.thread != null) R.string.yt_replies_title else R.string.yt_comments),
+                    style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 8.dp))
+            }
+            // «Комментарии к видео …» — переход к ролику без автоматического запуска
+            Row(
+                Modifier.fillMaxWidth().background(c.surfaceContainer).clickable { onOpenVideo(title.orEmpty()) }.padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    if (title != null) tr(R.string.yt_comments_for, title!!) else tr(R.string.yt_comments),
+                    style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+                )
+                coil.compose.AsyncImage("https://i.ytimg.com/vi/$videoId/mqdefault.jpg", null, contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    modifier = Modifier.padding(start = 12.dp).width(96.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(8.dp)))
+            }
+            CommentsContent(comments, Modifier.weight(1f), fill = true)
+        }
+    }
 }

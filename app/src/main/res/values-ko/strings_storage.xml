@@ -108,4 +108,15 @@
     <string name="yt_push">YouTube 알림</string>
     <string name="yt_push_desc">구독 채널의 새 동영상과 답글을 앱 알림으로</string>
     <string name="yt_notifications_channel">YouTube 알림</string>
+    <string name="yt_hide_replies">답글 숨기기</string>
+    <string name="yt_more_replies">답글 더보기</string>
+    <string name="yt_replies_title">답글</string>
+    <string name="yt_your_reply">답글 작성…</string>
+    <string name="yt_all">전체</string>
+    <string name="yt_reply">답글</string>
+    <string name="yt_linked_reply">링크로 연 답글</string>
+    <string name="yt_comments_for">「%1$s」 동영상의 댓글</string>
+    <string name="yt_next_up">다음 동영상</string>
+    <string name="yt_play_next">재생</string>
+    <string name="yt_autoplay">다음 동영상 자동재생</string>
 </resources>

@@ -276,6 +276,7 @@ fun PodcastScreen() {
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+            windowInsets = com.offplayer.app.ui.stableTopBarInsets(),
         )
         if (podcasts.isEmpty() && !hasOnline) {
             EmptyState(

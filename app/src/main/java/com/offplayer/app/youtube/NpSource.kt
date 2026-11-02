@@ -49,6 +49,12 @@ object NpSource {
         }
     }
 
+    /** Подсказки поиска по мере ввода — те же, что в строке поиска YouTube. */
+    fun suggestions(query: String): List<String> {
+        init()
+        return runCatching { yt.suggestionExtractor.suggestionList(query) }.getOrNull().orEmpty()
+    }
+
     fun search(query: String, cont: NpContinuation?): YtPage {
         init()
         if (cont != null) {

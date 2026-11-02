@@ -25,6 +25,9 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -180,10 +183,12 @@ fun ShortsFeed(active: Boolean, onDownload: (String) -> Unit, onChannel: (id: St
     var paused by remember { mutableStateOf(false) }
     // Удержание пальцем прячет подписи и кнопки, чтобы видеть кадр целиком
     var uiHidden by remember { mutableStateOf(false) }
+    // Во время перемотки подписи и кнопки скрыты, как в YouTube, — время над полосой ничего не перекрывает
+    var scrubbing by remember { mutableStateOf(false) }
     LaunchedEffect(active, videoOpen) { paused = false }
     LaunchedEffect(currentId) { paused = false }
     // Просмотренный Shorts — в историю аккаунта (соседние, подготовленные заранее, не отмечаются)
-    LaunchedEffect(currentId, active) { if (active) currentId?.let { com.offplayer.app.youtube.YouTubeActions.markWatched(it) } }
+    LaunchedEffect(currentId, active) { if (active) currentId?.let { com.offplayer.app.youtube.YouTubeActions.markWatched(it, short = true) } }
     // Играет только текущий; ушедший с экрана останавливается и возвращается к началу
     val currentPlayer = currentId?.let { players[it] }
     LaunchedEffect(currentId, currentPlayer, active, videoOpen, paused) {
@@ -264,7 +269,7 @@ fun ShortsFeed(active: Boolean, onDownload: (String) -> Unit, onChannel: (id: St
                 )
             }
             if (isCurrent && (stream == null)) CircularProgressIndicator(Modifier.align(Alignment.Center), color = Color.White)
-            if (isCurrent && paused && !uiHidden) {
+            if (isCurrent && paused && !uiHidden && !scrubbing) {
                 Icon(
                     Icons.Rounded.PlayArrow, null, tint = Color.White,
                     modifier = Modifier.align(Alignment.Center).size(72.dp).background(Color.Black.copy(alpha = 0.35f), CircleShape).padding(12.dp),
@@ -272,7 +277,7 @@ fun ShortsFeed(active: Boolean, onDownload: (String) -> Unit, onChannel: (id: St
             }
 
             // Как в приложении YouTube: справа столбец действий, снизу канал с подпиской и название
-            if (stream != null && !uiHidden) ShortOverlay(
+            if (stream != null && !uiHidden && !scrubbing) ShortOverlay(
                 youtubeId = id,
                 stream = stream,
                 onDownload = { onDownload("https://www.youtube.com/shorts/$id") },
@@ -280,12 +285,12 @@ fun ShortsFeed(active: Boolean, onDownload: (String) -> Unit, onChannel: (id: St
                 onSheet = { sheet = it; sheetFor = id },
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
-            if (isCurrent && pagePlayer != null) ShortProgress(pagePlayer, Modifier.align(Alignment.BottomCenter))
+            if (isCurrent && pagePlayer != null) ShortProgress(pagePlayer, Modifier.align(Alignment.BottomCenter)) { scrubbing = it }
         }
     }
 
     // Шапка ленты Shorts поверх видео (панель вкладки YouTube скрыта)
-    if (!uiHidden) Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
+    if (!uiHidden && !scrubbing) Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, tr(R.string.action_back), tint = Color.White) }
         Text("Shorts", color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
     }
@@ -399,7 +404,7 @@ private fun ShortAction(icon: androidx.compose.ui.graphics.vector.ImageVector, l
 
 /** Тонкая полоска хода ролика по нижнему краю. */
 @Composable
-private fun ShortProgress(player: ExoPlayer, modifier: Modifier) {
+private fun ShortProgress(player: ExoPlayer, modifier: Modifier, onScrub: (Boolean) -> Unit = {}) {
     var progress by remember { mutableFloatStateOf(0f) }
     LaunchedEffect(player) {
         while (true) {
@@ -408,12 +413,41 @@ private fun ShortProgress(player: ExoPlayer, modifier: Modifier) {
             delay(100)
         }
     }
-    LinearProgressIndicator(
-        progress = { progress },
-        modifier = modifier.fillMaxWidth().height(2.dp),
-        color = Color.White,
-        trackColor = Color.White.copy(alpha = 0.25f),
-        gapSize = 0.dp,
-        drawStopIndicator = {},
-    )
+    // Перемотка, как в YouTube: нажатие или перетаскивание по полосе; во время перетаскивания полоса толще
+    // и над ней видно время. Область касания выше самой полосы, чтобы в неё было легко попасть
+    var dragging by remember { mutableStateOf<Float?>(null) }
+    fun seek(f: Float) { player.duration.takeIf { it > 0 }?.let { player.seekTo((f.coerceIn(0f, 1f) * it).toLong()) } }
+    Box(
+        modifier.fillMaxWidth().height(24.dp)
+            .pointerInput(player) { detectTapGestures { o -> seek(o.x / size.width) } }
+            .pointerInput(player) {
+                detectHorizontalDragGestures(
+                    onDragStart = { o -> dragging = (o.x / size.width).coerceIn(0f, 1f); onScrub(true) },
+                    onDragEnd = { dragging?.let { seek(it) }; dragging = null; onScrub(false) },
+                    onDragCancel = { dragging = null; onScrub(false) },
+                ) { change, _ ->
+                    change.consume()
+                    dragging = (change.position.x / size.width).coerceIn(0f, 1f)
+                }
+            },
+        contentAlignment = Alignment.BottomCenter,
+    ) {
+        dragging?.let { f ->
+            val d = player.duration.coerceAtLeast(0)
+            fun t(ms: Long) = "%d:%02d".format(ms / 60_000, ms / 1000 % 60)
+            Text(
+                "${t((f * d).toLong())} / ${t(d)}", color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.align(Alignment.TopCenter).wrapContentSize(unbounded = true).offset(y = (-48).dp)
+                    .background(Color.Black.copy(alpha = 0.55f), RoundedCornerShape(8.dp)).padding(horizontal = 10.dp, vertical = 4.dp),
+            )
+        }
+        LinearProgressIndicator(
+            progress = { dragging ?: progress },
+            modifier = Modifier.fillMaxWidth().height(if (dragging != null) 5.dp else 2.dp),
+            color = if (dragging != null) com.offplayer.app.ui.BrandRed else Color.White,
+            trackColor = Color.White.copy(alpha = 0.25f),
+            gapSize = 0.dp,
+            drawStopIndicator = {},
+        )
+    }
 }

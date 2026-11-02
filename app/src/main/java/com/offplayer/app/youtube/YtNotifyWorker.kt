@@ -44,10 +44,13 @@ class YtNotifyWorker(context: Context, params: WorkerParameters) : CoroutineWork
             ContextCompat.checkSelfPermission(app, android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) return Result.success()
         runCatching {
-            YtNotifications.refreshUnseen()
-            if (YtNotifications.unseen.value <= 0) return Result.success()
+            // Список проверяется всегда: счётчик непросмотренных обнуляется, когда оповещения открывают
+            // в приложении YouTube или на сайте, — по нему новые оповещения терялись
             val fresh = YtNotifications.listForPush(app)
-            fresh.take(MAX_AT_ONCE).forEach { post(app, it) }
+            YtNotifications.refreshUnseen()
+            val shown = fresh.take(MAX_AT_ONCE)
+            shown.forEach { post(app, it) }
+            if (shown.isNotEmpty()) postSummary(app, shown)
         }
         return Result.success()
     }
@@ -60,6 +63,8 @@ class YtNotifyWorker(context: Context, params: WorkerParameters) : CoroutineWork
             .putExtra(MainActivity.EXTRA_YT_VIDEO, n.videoId)
             .putExtra(MainActivity.EXTRA_YT_SHORT, n.isShort)
             .putExtra(MainActivity.EXTRA_YT_CHANNEL, n.channelId)
+            .putExtra(MainActivity.EXTRA_YT_COMMENT, n.commentId)
+            .putExtra(MainActivity.EXTRA_YT_PARAMS, n.watchParams)
             .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         val key = n.videoId ?: n.channelId ?: n.text
         val pi = PendingIntent.getActivity(context, key.hashCode(), open, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
@@ -80,7 +85,31 @@ class YtNotifyWorker(context: Context, params: WorkerParameters) : CoroutineWork
         runCatching { nm.notify(key.hashCode(), builder.build()) }
     }
 
+    /**
+     * Сводное уведомление группы: без него Android показывает каждую проверку отдельной стопкой.
+     * С ним все оповещения YouTube — одна группа, новые добавляются к старым.
+     */
+    private fun postSummary(context: Context, latest: List<YtNotification>) {
+        val nm = context.getSystemService(NotificationManager::class.java)
+        val open = Intent(context, MainActivity::class.java)
+            .setAction(MainActivity.ACTION_OPEN_YOUTUBE)
+            .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        val pi = PendingIntent.getActivity(context, SUMMARY_ID, open, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val summary = NotificationCompat.Builder(context, CHANNEL)
+            .setSmallIcon(R.drawable.ic_stat_youtube)
+            .setContentTitle("YouTube")
+            .setContentText(latest.first().text)
+            .setStyle(NotificationCompat.InboxStyle().also { s -> latest.forEach { s.addLine(it.text) } })
+            .setGroup(GROUP)
+            .setGroupSummary(true)
+            .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
+            .setContentIntent(pi)
+            .setAutoCancel(true)
+        runCatching { nm.notify(SUMMARY_ID, summary.build()) }
+    }
+
     companion object {
+        private const val SUMMARY_ID = 0x7907
         private const val CHANNEL = "youtube_notifications"
         private const val GROUP = "youtube"
         private const val WORK = "youtube_notifications"

@@ -143,16 +143,19 @@ fun MainScreen(
     // Вложенный свайп (Shorts внутри YouTube) может оставить вкладки на полпути — доводим до ближайшей
     LaunchedEffect(pagerState.isScrollInProgress) {
         if (!pagerState.isScrollInProgress && kotlin.math.abs(pagerState.currentPageOffsetFraction) > 0.001f) {
-            pagerState.animateScrollToPage(pagerState.currentPage)
+            pagerState.animateScrollToPage(settleTarget(pagerState))
         }
     }
     LaunchedEffect(tab) { lastTab = tab }
+    // Плеер свёрнут свайпом вниз — другие анимации закрытия и появления мини-плеера
+    var gestureMinimize by remember { mutableStateOf(false) }
     val landscapeMain = androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     LaunchedEffect(tabs) { if (tabs.getOrNull(pagerState.currentPage) != lastTab) pagerState.scrollToPage(pageOf(lastTab)) }
     var playerExpanded by rememberSaveable { mutableStateOf(false) }
     var pendingUrl by rememberSaveable { mutableStateOf<String?>(null) }
     val player by MusicController.state.collectAsStateWithLifecycle()
     val videoOpen by VideoController.open.collectAsStateWithLifecycle()
+    LaunchedEffect(videoOpen) { if (videoOpen) gestureMinimize = false }
     val videoUi by VideoController.ui.collectAsStateWithLifecycle()
     val addToPlaylist by UiEvents.addToPlaylist.collectAsStateWithLifecycle()
     // Подкаст играет через тот же плеер, но со своим мини-плеером (на вкладке «Подкасты») и своим экраном
@@ -214,6 +217,13 @@ fun MainScreen(
         pendingUrl = url
         if (videoOpen) VideoController.close(stopPlayback = false)
         pagerState.scrollToPage(pageOf(MainTab.DOWNLOADS))
+    }
+    // Уведомление об ответе на комментарий — вкладка YouTube со страницей комментариев
+    val ytOpenTab by com.offplayer.app.youtube.YouTubeNav.openYoutubeTab.collectAsStateWithLifecycle()
+    LaunchedEffect(ytOpenTab) {
+        if (ytOpenTab == 0) return@LaunchedEffect
+        if (videoOpen) VideoController.close(stopPlayback = false)
+        if (MainTab.YOUTUBE in tabs) pagerState.scrollToPage(pageOf(MainTab.YOUTUBE))
     }
     // Уведомление о Shorts — вкладка YouTube, лента Shorts открывается самой вкладкой
     val ytShortsTab by com.offplayer.app.youtube.YouTubeNav.openShortsTab.collectAsStateWithLifecycle()
@@ -310,9 +320,11 @@ fun MainScreen(
                     // Видео, играющее в фоне, — свой мини-плеер на вкладке «Видео»
                     AnimatedVisibility(
                         // Свёрнутый ролик YouTube играет дальше — его мини-плеер и на вкладке YouTube
+                        // После свайпа вниз мини-плеер появляется сразу, пока плеер ещё «съезжает» в него
                         // В ленте Shorts мини-плеер прячется под меню, как на вкладке «Музыка»
                         visible = (tab == MainTab.VIDEO || (tab == MainTab.YOUTUBE && !shortsChrome)) && videoUi.hasMedia && !videoOpen,
-                        enter = slideInVertically(tween(350)) { it } + expandVertically(tween(350), expandFrom = Alignment.Top) + fadeIn(tween(250)),
+                        enter = if (gestureMinimize) expandVertically(tween(220), expandFrom = Alignment.Top) + fadeIn(tween(200))
+                            else slideInVertically(tween(350)) { it } + expandVertically(tween(350), expandFrom = Alignment.Top) + fadeIn(tween(250)),
                         exit = slideOutVertically(tween(300)) { it } + shrinkVertically(tween(300), shrinkTowards = Alignment.Top) + fadeOut(tween(250)),
                     ) {
                         VideoMiniPlayer(videoUi)
@@ -336,10 +348,11 @@ fun MainScreen(
                 state = pagerState,
                 beyondViewportPageCount = tabs.size - 1, // вкладки не теряют состояние
                 key = { tabs.getOrElse(it) { MainTab.DOWNLOADS }.name },
-                // В альбомной ориентации экран широкий — вкладка перелистывается уже на 20% ширины, а не на половине
+                // Вкладка перелистывается уже на четверти ширины (в альбомной — на 20%), а не на половине: свайп из ленты YouTube
+                // часть движения забирает её собственный пейджер, и вкладка возвращалась назад
                 flingBehavior = androidx.compose.foundation.pager.PagerDefaults.flingBehavior(
                     state = pagerState,
-                    snapPositionalThreshold = if (landscapeMain) 0.2f else 0.5f,
+                    snapPositionalThreshold = if (landscapeMain) 0.2f else 0.25f,
                 ),
                 modifier = Modifier.padding(bottom = padding.calculateBottomPadding()),
             ) { page ->
@@ -376,8 +389,10 @@ fun MainScreen(
         // Видеоплеер — поверх всего; в режиме «картинка в картинке» заполняет всё окно
         AnimatedVisibility(
             visible = videoOpen,
-            enter = slideInVertically(tween(350, easing = FastOutSlowInEasing)) { it } + fadeIn(tween(250)),
-            exit = slideOutVertically(tween(300, easing = FastOutSlowInEasing)) { it } + fadeOut(tween(250)),
+            enter = slideInVertically(tween(380, easing = androidx.compose.animation.core.LinearOutSlowInEasing)) { it } + fadeIn(tween(200)),
+            // Свёрнут свайпом — плеер сам доезжает до мини-плеера и только тает
+            exit = if (gestureMinimize) fadeOut(tween(260))
+                else slideOutVertically(tween(280, easing = androidx.compose.animation.core.FastOutLinearInEasing)) { it } + fadeOut(tween(280)),
         ) {
             VideoPlayerScreen(
                 inPip = inPip,
@@ -389,6 +404,7 @@ fun MainScreen(
                 onStop = { VideoController.close(stopPlayback = true) },
                 // Свайп вниз — в мини-плеер на вкладке «Видео», звук продолжает играть
                 onMinimize = {
+                    gestureMinimize = true
                     VideoController.close(stopPlayback = false)
                     // Ролик YouTube сворачивается на вкладку YouTube, файл — на вкладку «Видео»
                     val stream = com.offplayer.app.youtube.YouTubeStreams.isStream(videoUi.videoId)
@@ -543,3 +559,17 @@ private fun CompactNavBar(tabs: List<MainTab>, selected: MainTab, onSelect: (Mai
     }
 }
 
+/**
+ * Куда довести остановившийся на полпути пейджер. Свайп из вложенной ленты (YouTube внутри вкладок) часто
+ * отдаёт внешнему пейджеру только часть движения — вкладка сдвигалась и возвращалась обратно.
+ * Сдвиг больше 15% ширины засчитывается как перелистывание в ту сторону.
+ */
+fun settleTarget(state: androidx.compose.foundation.pager.PagerState): Int {
+    val f = state.currentPageOffsetFraction
+    val target = when {
+        f > 0.15f -> state.currentPage + 1
+        f < -0.15f -> state.currentPage - 1
+        else -> state.currentPage
+    }
+    return target.coerceIn(0, (state.pageCount - 1).coerceAtLeast(0))
+}

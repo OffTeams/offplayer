@@ -477,7 +477,7 @@ fun PlayerSettingsPanel(
                 subtitle = tr(R.string.bg_playback_desc),
                 onClick = { AppSettings.setVideoBackground(!background) },
             ) {
-                Switch(checked = background, onCheckedChange = { AppSettings.setVideoBackground(it) })
+                Switch(checked = background, onCheckedChange = { AppSettings.setVideoBackground(it) }, colors = com.offplayer.app.ui.appSwitchColors())
             }
             if (pipSupported) {
                 SettingsRow(

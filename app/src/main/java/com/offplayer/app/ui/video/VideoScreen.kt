@@ -208,6 +208,7 @@ fun VideoScreen() {
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+            windowInsets = com.offplayer.app.ui.stableTopBarInsets(),
         )
 
         // Разделы: все видео, списки, категории — и сортировка справа (для раздела «Все»)

@@ -135,6 +135,11 @@ object AppSettings {
     val videoBackground: StateFlow<Boolean> = _videoBackground.asStateFlow()
     fun setVideoBackground(v: Boolean) { _videoBackground.value = v; prefs.edit().putBoolean("video_bg", v).apply() }
 
+    private val _ytAutoplay = MutableStateFlow(true)
+    /** Следующее видео YouTube: по окончании ролика через 5 с запускается следующий из ленты похожих. */
+    val ytAutoplay: StateFlow<Boolean> = _ytAutoplay.asStateFlow()
+    fun setYtAutoplay(v: Boolean) { _ytAutoplay.value = v; prefs.edit().putBoolean("yt_autoplay", v).apply() }
+
     private val _videoAutoPip = MutableStateFlow(true)
     /** Автоматически уходить в «картинку в картинке» при нажатии «Домой». */
     val videoAutoPip: StateFlow<Boolean> = _videoAutoPip.asStateFlow()
@@ -278,6 +283,7 @@ object AppSettings {
         _showAddToPlaylist.value = prefs.getBoolean("show_add_pl", true)
         _saveSource.value = prefs.getBoolean("save_source", true)
         _videoBackground.value = prefs.getBoolean("video_bg", true)
+        _ytAutoplay.value = prefs.getBoolean("yt_autoplay", true)
         _videoAutoPip.value = prefs.getBoolean("video_auto_pip", true)
         _videoAutoRotate.value = prefs.getBoolean("video_auto_rotate", true)
         _videoSpeed.value = prefs.getFloat("video_speed", 1f)

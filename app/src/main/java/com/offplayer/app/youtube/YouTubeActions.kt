@@ -22,10 +22,15 @@ data class YtComment(
     val likes: String,
     val date: String,
     val replies: String,
+    /** id комментария и токен ветки ответов (null — ответов нет или это сам ответ). */
+    val id: String = "",
+    val repliesToken: String? = null,
+    /** Параметры ответа на этот комментарий (createReplyParams); null — ответить нельзя. */
+    val replyParams: String? = null,
 )
 
 /** Страница комментариев; total — «38» или «1,2 тыс.»; next — токен продолжения. */
-class YtComments(val items: List<YtComment>, val total: String?, val next: String?)
+class YtComments(val items: List<YtComment>, val total: String?, val next: String?, val byId: Map<String, YtComment> = emptyMap())
 
 
 /**
@@ -89,12 +94,13 @@ object YouTubeActions {
      * с --mark-watched): со страницы ролика берётся адрес статистики просмотра и вызывается от имени аккаунта.
      * Один раз за запуск на ролик; без входа ничего не делает.
      */
-    fun markWatched(videoId: String) {
+    fun markWatched(videoId: String, short: Boolean = false) {
         if (!YouTubeAccount.signedIn.value || !markedWatched.add(videoId)) return
         watchScope.launch {
             runCatching {
                 val headers = YouTubeAccount.authHeaders()
-                val page = httpGet("https://www.youtube.com/watch?v=$videoId&hl=en", headers)
+                // Shorts — со страницы Shorts: тогда YouTube записывает просмотр в историю как Shorts, а не как ролик
+                val page = httpGet(if (short) "https://www.youtube.com/shorts/$videoId?hl=en" else "https://www.youtube.com/watch?v=$videoId&hl=en", headers)
                 val base = WATCH_URL.find(page)?.groupValues?.get(1) ?: error("no playback url")
                 val url = base.replace("\\u0026", "&").replace("\\/", "/")
                 val cpn = (1..16).map { CPN_CHARS.random() }.joinToString("")
@@ -126,34 +132,108 @@ object YouTubeActions {
         firstPages.computeIfAbsent(videoId) { prefetchScope.async { load(videoId, null) } }
     }
 
-    suspend fun comments(videoId: String, next: String?): YtComments =
-        if (next == null) firstPages.remove(videoId)?.let { runCatching { it.await() }.getOrNull() } ?: load(videoId, null)
+    /** watchParams — параметры ссылки на комментарий: YouTube ставит этот комментарий первым в списке. */
+    suspend fun comments(videoId: String, next: String?, watchParams: String? = null): YtComments =
+        if (next == null && watchParams != null) load(videoId, null, watchParams)
+        else if (next == null) firstPages.remove(videoId)?.let { runCatching { it.await() }.getOrNull() } ?: load(videoId, null)
         else load(videoId, next)
 
-    private suspend fun load(videoId: String, next: String?): YtComments = withContext(Dispatchers.IO) {
-        val token = next ?: findCommentsToken(YouTubeApi.call("next", JSONObject().put("videoId", videoId)))
+    private suspend fun load(videoId: String, next: String?, watchParams: String? = null): YtComments = withContext(Dispatchers.IO) {
+        val token = next ?: findCommentsToken(YouTubeApi.call("next", JSONObject().put("videoId", videoId).apply { watchParams?.let { put("params", it) } }))
             ?: return@withContext YtComments(emptyList(), null, null)
         val r = YouTubeApi.call("next", JSONObject().put("continuation", token))
-        val items = ArrayList<YtComment>()
+        val page = parseComments(r)
+        // Число комментариев — в шапке блока (только на первой странице)
+        val total = if (next == null) findString(r, "countText")
+            ?: Regex(""""countText":\{"runs":\[\{"text":"([^"]+)"""").find(r.toString())?.groupValues?.get(1) else null
+        YtComments(page.items, total, page.next, page.byId)
+    }
+
+    /** Ветка ответов на комментарий (и её продолжение — «Показать другие ответы»). */
+    suspend fun replies(token: String): YtComments = withContext(Dispatchers.IO) {
+        parseComments(YouTubeApi.call("next", JSONObject().put("continuation", token)))
+    }
+
+    /**
+     * Комментарии из ответа youtubei: порядок и ветки ответов — из списка (commentThreadRenderer / commentViewModel),
+     * тексты, авторы и лайки — из frameworkUpdates (commentEntityPayload) по id комментария.
+     * Продолжение — continuationItemRenderer самого списка, а не токены веток ответов внутри него.
+     */
+    private fun parseComments(r: JSONObject): YtComments {
+        val payloads = LinkedHashMap<String, JSONObject>()
+        // Панель действий комментария (там параметры ответа) — по ключу toolbarSurfaceKey
+        val toolbars = HashMap<String, String>()
         val mutations = r.optJSONObject("frameworkUpdates")?.optJSONObject("entityBatchUpdate")?.optJSONArray("mutations") ?: JSONArray()
         for (i in 0 until mutations.length()) {
-            val p = mutations.optJSONObject(i)?.optJSONObject("payload")?.optJSONObject("commentEntityPayload") ?: continue
+            val m = mutations.optJSONObject(i) ?: continue
+            m.optJSONObject("payload")?.optJSONObject("engagementToolbarSurfaceEntityPayload")?.let { t ->
+                findString(t, "createReplyParams")?.let { toolbars[m.optString("entityKey")] = it }
+            }
+            val p = m.optJSONObject("payload")?.optJSONObject("commentEntityPayload") ?: continue
+            val id = p.optJSONObject("properties")?.optString("commentId").orEmpty()
+            payloads[id.ifEmpty { "#$i" }] = p
+        }
+        val toolbarOf = HashMap<String, String>() // id комментария → ключ его панели действий
+        val order = ArrayList<Pair<String, String?>>() // id комментария → токен ответов
+        var nextToken: String? = null
+        val endpoints = r.optJSONArray("onResponseReceivedEndpoints") ?: JSONArray()
+        for (e in 0 until endpoints.length()) {
+            val ep = endpoints.optJSONObject(e) ?: continue
+            val list = ep.optJSONObject("reloadContinuationItemsCommand")?.optJSONArray("continuationItems")
+                ?: ep.optJSONObject("appendContinuationItemsAction")?.optJSONArray("continuationItems") ?: continue
+            for (k in 0 until list.length()) {
+                val item = list.optJSONObject(k) ?: continue
+                val thread = item.optJSONObject("commentThreadRenderer")
+                val vm = (thread ?: item).optJSONObject("commentViewModel")?.let { it.optJSONObject("commentViewModel") ?: it }
+                val cont = item.optJSONObject("continuationItemRenderer")
+                when {
+                    vm != null -> {
+                        val id = vm.optString("commentId")
+                        vm.optString("toolbarSurfaceKey").takeIf { it.isNotEmpty() }?.let { toolbarOf[id] = it }
+                        val rt = thread?.optJSONObject("replies")?.let { firstToken(it) }
+                        if (id.isNotEmpty()) order += id to rt
+                    }
+                    cont != null -> nextToken = firstToken(cont)
+                }
+            }
+        }
+        val items = ArrayList<YtComment>()
+        val ids = if (order.isNotEmpty()) order else payloads.keys.map { it to null }
+        val tokens = ids.toMap()
+        // Все комментарии ответа по id — среди них и ответ, открытый по ссылке (он приходит внутри ветки)
+        val byId = LinkedHashMap<String, YtComment>()
+        for (id in payloads.keys) {
+            val p = payloads[id] ?: continue
+            val repliesToken = tokens[id]
             val props = p.optJSONObject("properties")
             val author = p.optJSONObject("author")
             val toolbar = p.optJSONObject("toolbar")
-            items += YtComment(
+            byId[id] = YtComment(
                 author = author?.optString("displayName").orEmpty(),
                 avatar = author?.optString("avatarThumbnailUrl")?.takeIf { it.startsWith("http") },
                 text = props?.optJSONObject("content")?.optString("content").orEmpty(),
                 likes = toolbar?.optString("likeCountNotliked").orEmpty().takeIf { it != "0" }.orEmpty(),
                 date = props?.optString("publishedTime").orEmpty(),
                 replies = toolbar?.optString("replyCount").orEmpty().takeIf { it != "0" }.orEmpty(),
+                id = id,
+                repliesToken = repliesToken,
+                replyParams = toolbarOf[id]?.let { toolbars[it] },
             )
         }
-        // Число комментариев — в шапке блока (только на первой странице)
-        val total = if (next == null) findString(r, "countText")
-            ?: Regex(""""countText":\{"runs":\[\{"text":"([^"]+)"""").find(r.toString())?.groupValues?.get(1) else null
-        YtComments(items, total, lastContinuation(r))
+        for ((id, _) in ids) byId[id]?.let { items += it }
+        return YtComments(items, null, nextToken ?: if (order.isEmpty()) lastContinuation(r) else null, byId)
+    }
+
+    /** Первый токен продолжения внутри узла. */
+    private fun firstToken(node: Any?): String? {
+        when (node) {
+            is JSONObject -> {
+                node.optJSONObject("continuationCommand")?.optString("token")?.takeIf { it.isNotEmpty() }?.let { return it }
+                for (k in node.keys()) firstToken(node.opt(k))?.let { return it }
+            }
+            is JSONArray -> for (i in 0 until node.length()) firstToken(node.opt(i))?.let { return it }
+        }
+        return null
     }
 
     /** Продолжение списка — токен последнего continuationItemRenderer в ответе. */
@@ -163,6 +243,11 @@ object YouTubeActions {
      * Новый комментарий. Параметры отправки сайт получает из блока комментариев страницы ролика:
      * запрашиваем его так же и отправляем текст.
      */
+    /** Ответ на комментарий от имени аккаунта. */
+    suspend fun postReply(replyParams: String, text: String) = withContext(Dispatchers.IO) {
+        YouTubeApi.authPost("comment/create_comment_reply", JSONObject().put("createReplyParams", replyParams).put("commentText", text))
+    }
+
     suspend fun postComment(videoId: String, text: String) = withContext(Dispatchers.IO) {
         val page = YouTubeApi.authPost("next", JSONObject().put("videoId", videoId))
         // Блок комментариев приходит отдельным продолжением — в нём и есть createCommentParams

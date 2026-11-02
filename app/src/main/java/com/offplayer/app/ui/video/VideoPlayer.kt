@@ -1,5 +1,13 @@
 package com.offplayer.app.ui.video
 
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import com.offplayer.app.tr
 
 import android.annotation.SuppressLint
@@ -105,6 +113,117 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
+
+/** Текст субтитров одним блоком по центру внизу (без позиций и выравнивания из файла); картинки-субтитры — как есть. */
+private fun centeredCues(cues: List<androidx.media3.common.text.Cue>): List<androidx.media3.common.text.Cue> {
+    val text = cues.mapNotNull { it.text?.toString()?.trim()?.takeIf { t -> t.isNotEmpty() } }.distinct().joinToString("\n")
+    val bitmaps = cues.filter { it.bitmap != null }
+    if (text.isEmpty()) return bitmaps
+    return bitmaps + androidx.media3.common.text.Cue.Builder().setText(text).setTextAlignment(android.text.Layout.Alignment.ALIGN_CENTER).build()
+}
+
+/**
+ * «Следующее видео» по окончании ролика: превью следующего на всю свободную область плеера и кнопки
+ * «Отмена» и «Воспроизвести»; кнопка заполняется 5 секунд, затем следующий ролик запускается сам.
+ * Листание страницы ролика (похожие под комментариями) — тоже отмена.
+ */
+@Composable
+private fun NextUpOverlay(
+    next: com.offplayer.app.youtube.YtVideo,
+    modifier: Modifier,
+    topBar: androidx.compose.ui.unit.Dp,
+    sidePadding: androidx.compose.ui.unit.Dp,
+    onCancel: () -> Unit,
+    onPlay: () -> Unit,
+) {
+    val progress = remember(next.id) { Animatable(0f) }
+    val cancel by rememberUpdatedState(onCancel)
+    val play by rememberUpdatedState(onPlay)
+    // Листают страницу ролика — отсчёт останавливается, «Воспроизвести» подсвечена целиком, запуск — только нажатием
+    var held by remember(next.id) { mutableStateOf(false) }
+    LaunchedEffect(next.id, held) {
+        if (held) { progress.snapTo(1f); return@LaunchedEffect }
+        progress.animateTo(1f, androidx.compose.animation.core.tween(10_000, easing = androidx.compose.animation.core.LinearEasing))
+        play()
+    }
+    LaunchedEffect(next.id) {
+        val start = com.offplayer.app.youtube.YouTubeNav.relatedScrolled.value
+        com.offplayer.app.youtube.YouTubeNav.relatedScrolled.collect { if (it != start) held = true }
+    }
+    // Чёрный фон закрывает последний кадр ролика; превью — целиком в пропорциях 16:9,
+    // такого размера, чтобы между верхней строкой и кнопками оно помещалось полностью
+    BoxWithConstraints(modifier.background(Color.Black)) {
+        val buttons = 40.dp
+        val gap = 10.dp
+        val availH = (maxHeight - topBar - buttons - gap - 8.dp).coerceAtLeast(40.dp)
+        val width = minOf(maxWidth - sidePadding * 2, availH * 16f / 9f)
+        Column(
+            Modifier.fillMaxSize().padding(top = topBar, bottom = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Box(Modifier.width(width).aspectRatio(16f / 9f).clip(RoundedCornerShape(12.dp)).background(Color.White.copy(alpha = 0.06f)).clickable { play() }) {
+                coil.compose.AsyncImage(next.thumbnail, null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                next.duration?.let {
+                    Text(
+                        it, color = Color.White, style = MaterialTheme.typography.labelMedium,
+                        modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp).background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(4.dp)).padding(horizontal = 5.dp, vertical = 1.dp),
+                    )
+                }
+            }
+            // Кнопки — на всю ширину плеера, независимо от размера превью
+            Row(Modifier.fillMaxWidth().padding(horizontal = sidePadding).padding(top = gap), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(
+                    Modifier.weight(1f).height(buttons).clip(RoundedCornerShape(20.dp)).background(Color.White.copy(alpha = 0.14f)).clickable { cancel() },
+                    contentAlignment = Alignment.Center,
+                ) { Text(tr(R.string.action_cancel), color = Color.White, style = MaterialTheme.typography.labelLarge) }
+                Box(
+                    Modifier.weight(1f).height(buttons).clip(RoundedCornerShape(20.dp)).background(Color.White.copy(alpha = 0.55f)).clickable { play() },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    // Отсчёт до запуска — заполнение кнопки
+                    Box(Modifier.fillMaxSize().drawBehind { drawRect(Color.White, size = size.copy(width = size.width * progress.value)) })
+                    Text(tr(R.string.yt_play_next), color = Color.Black, style = MaterialTheme.typography.labelLarge)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Плеер для панели управления роликов YouTube: «следующее» открывает следующий ролик по ленте,
+ * «предыдущее» — прошлый просмотренный (а не начало ролика). Без ролика YouTube — как обычно.
+ */
+private class YtNavPlayer(player: Player) : androidx.media3.common.ForwardingPlayer(player) {
+    var enabled = false
+    var onNext: (() -> Unit)? = null
+    var onPrevious: (() -> Unit)? = null
+
+    private fun isNext(c: Int) = c == Player.COMMAND_SEEK_TO_NEXT || c == Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM
+    private fun isPrev(c: Int) = c == Player.COMMAND_SEEK_TO_PREVIOUS || c == Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM
+
+    override fun isCommandAvailable(command: Int): Boolean = when {
+        !enabled -> super.isCommandAvailable(command)
+        isNext(command) -> onNext != null
+        isPrev(command) -> onPrevious != null
+        else -> super.isCommandAvailable(command)
+    }
+
+    override fun getAvailableCommands(): Player.Commands {
+        if (!enabled) return super.getAvailableCommands()
+        val b = super.getAvailableCommands().buildUpon()
+        listOf(Player.COMMAND_SEEK_TO_NEXT, Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM).forEach { if (onNext != null) b.add(it) else b.remove(it) }
+        listOf(Player.COMMAND_SEEK_TO_PREVIOUS, Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM).forEach { if (onPrevious != null) b.add(it) else b.remove(it) }
+        return b.build()
+    }
+
+    override fun hasNextMediaItem(): Boolean = if (enabled) onNext != null else super.hasNextMediaItem()
+    override fun hasPreviousMediaItem(): Boolean = if (enabled) onPrevious != null else super.hasPreviousMediaItem()
+    override fun seekToNext() { if (enabled) onNext?.invoke() else super.seekToNext() }
+    override fun seekToNextMediaItem() { if (enabled) onNext?.invoke() else super.seekToNextMediaItem() }
+    override fun seekToPrevious() { if (enabled) onPrevious?.invoke() else super.seekToPrevious() }
+    override fun seekToPreviousMediaItem() { if (enabled) onPrevious?.invoke() else super.seekToPreviousMediaItem() }
+}
 
 /** EXPAND — свайп вверх по центру: открыть описание ролика YouTube. */
 enum class GestureZone { BRIGHTNESS, VOLUME, COLLAPSE, EXPAND }
@@ -284,7 +403,62 @@ fun VideoPlayerScreen(
     // Верхняя панель показывается строго вместе со встроенными элементами управления PlayerView
     var controlsVisible by remember { mutableStateOf(false) }
     var settingsOpen by remember { mutableStateOf(false) }
+    // «Следующее видео»: ролик YouTube закончился — через 5 с запускается следующий из похожих
+    val autoplay by AppSettings.ytAutoplay.collectAsStateWithLifecycle()
+    var ended by remember { mutableStateOf(false) }
+    var nextUp by remember { mutableStateOf<com.offplayer.app.youtube.YtVideo?>(null) }
+    var nextCancelledFor by remember { mutableStateOf<String?>(null) }
     var playerViewRef by remember { mutableStateOf<PlayerView?>(null) }
+    DisposableEffect(controller) {
+        val c = controller
+        val l = object : Player.Listener {
+            override fun onPlaybackStateChanged(state: Int) { ended = state == Player.STATE_ENDED }
+        }
+        c?.addListener(l)
+        ended = c?.playbackState == Player.STATE_ENDED
+        onDispose { c?.removeListener(l) }
+    }
+    // Следующий ролик по ленте похожих — для «Следующего видео» и для кнопки «следующее» в плеере
+    var nextCandidate by remember { mutableStateOf<com.offplayer.app.youtube.YtVideo?>(null) }
+    LaunchedEffect(ytId) {
+        nextUp = null
+        nextCandidate = null
+        val id = ytId ?: return@LaunchedEffect
+        val info = com.offplayer.app.youtube.YouTubeStreams.info(id)
+            ?: runCatching { com.offplayer.app.youtube.YouTubeStreams.loadInfo(id) }.getOrNull() ?: return@LaunchedEffect
+        nextCandidate = com.offplayer.app.youtube.NpSource.related(info).firstOrNull { !it.isShort && !it.isLive && it.id != id }
+    }
+    LaunchedEffect(ended, ytId, autoplay, nextCandidate) {
+        if (!ended) { nextUp = null; return@LaunchedEffect }
+        if (autoplay && ytId != null && nextCancelledFor != ytId) nextUp = nextCandidate
+    }
+    val playNext: (com.offplayer.app.youtube.YtVideo) -> Unit = { v ->
+        nextUp = null
+        scope.launch { runCatching { com.offplayer.app.youtube.YouTubeStreams.resolve(context, v) }.onSuccess { VideoController.playStream(it) } }
+    }
+    val playPrevious: () -> Unit = {
+        VideoController.previousYoutubeId()?.let { id ->
+            scope.launch {
+                runCatching {
+                    com.offplayer.app.youtube.YouTubeStreams.resolve(context,
+                        com.offplayer.app.youtube.YtVideo(id, "", "", null, null, "", "https://i.ytimg.com/vi/$id/hqdefault.jpg"))
+                }.onSuccess { VideoController.playStream(it, back = true) }
+            }
+        }
+    }
+    // Кнопки «предыдущее» и «следующее» панели плеера у роликов YouTube: прошлый ролик и следующий по ленте
+    val navPlayer = remember(controller) { controller?.let { YtNavPlayer(it) } }
+    androidx.compose.runtime.SideEffect {
+        navPlayer?.enabled = ytId != null
+        navPlayer?.onNext = nextCandidate?.let { v -> { playNext(v) } }
+        navPlayer?.onPrevious = if (VideoController.canGoBack()) playPrevious else null
+    }
+    // Ролик закончился — на кнопке воспроизведения значок «повторить»
+    LaunchedEffect(ended, controlsVisible, nextUp, playerViewRef) {
+        if (!ended || nextUp != null) return@LaunchedEffect
+        delay(60)
+        playerViewRef?.findViewById<android.widget.ImageView>(androidx.media3.ui.R.id.exo_play_pause)?.setImageResource(R.drawable.ic_replay)
+    }
     var touchTick by remember { mutableIntStateOf(0) }
     // Автоскрытие через 3,5 с во время воспроизведения — тем же вызовом, что и по тапу,
     // поэтому анимация одинаковая. Любое касание перезапускает таймер.
@@ -301,6 +475,12 @@ fun VideoPlayerScreen(
 
     // Свайп вниз из центра: свернуть в мини-плеер, видео продолжает играть в фоне
     val doCollapse by rememberUpdatedState(onMinimize)
+    // Высота экрана — до неё плеер доезжает вниз, прежде чем закрыться (движение не обрывается на середине)
+    val screenHeightPx = with(androidx.compose.ui.platform.LocalDensity.current) {
+        androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp.toPx()
+    }
+    // Мини-плеер — над нижним меню, примерно на 130 dp от низа экрана
+    val miniPlayerTopPx = with(androidx.compose.ui.platform.LocalDensity.current) { 130.dp.toPx() }
     val rotateNow by rememberUpdatedState(onRotate)
     // Описание поверх альбомного видео на планшете (на телефоне описание — в портретной ориентации)
     var tabletDetails by remember { mutableStateOf(false) }
@@ -324,6 +504,16 @@ fun VideoPlayerScreen(
     // Кнопка «на весь экран»: на телефоне — поворот, на планшете — страница ролика или видео во весь экран
     // Одно нажатие может прийти дважды (второй раз — с обратным значением): повтор в течение 700 мс пропускаем
     var lastFullscreenAt by remember { mutableStateOf(0L) }
+    var subtitleLayer by remember { mutableStateOf<androidx.media3.ui.SubtitleView?>(null) }
+    DisposableEffect(controller, subtitleLayer) {
+        val layer = subtitleLayer
+        val c = controller
+        val l = object : Player.Listener {
+            override fun onCues(cueGroup: androidx.media3.common.text.CueGroup) { layer?.setCues(centeredCues(cueGroup.cues)) }
+        }
+        if (layer != null && c != null) { c.addListener(l); layer.setCues(centeredCues(c.currentCues.cues)) }
+        onDispose { c?.removeListener(l) }
+    }
     val fullscreenNow by rememberUpdatedState { wantFull: Boolean ->
         val now = android.os.SystemClock.uptimeMillis()
         if (now - lastFullscreenAt < 700) return@rememberUpdatedState
@@ -417,7 +607,16 @@ fun VideoPlayerScreen(
                 } else if (zone == GestureZone.COLLAPSE) {
                     // Свернули — плеер уходит вниз как есть (без возврата картинки на место перед закрытием);
                     // не дотянули — картинка плавно возвращается
-                    if (collapse) doCollapse() else scope.launch { collapseOffset.animateTo(0f) }
+                    if (collapse) {
+                        // Плеер сразу уходит в мини-плеер: доезжает до его места внизу и тает,
+                        // а мини-плеер в это же время появляется (не после того, как плеер скрылся)
+                        scope.launch {
+                            collapseOffset.animateTo(screenHeightPx - miniPlayerTopPx, androidx.compose.animation.core.tween(260, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+                        }
+                        doCollapse()
+                    } else scope.launch {
+                        collapseOffset.animateTo(0f, androidx.compose.animation.core.spring(dampingRatio = 0.85f, stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow))
+                    }
                 } else {
                     hideJob = scope.launch {
                         delay(700)
@@ -448,6 +647,15 @@ fun VideoPlayerScreen(
     BoxWithConstraints(
         Modifier
             .fillMaxSize()
+            // Свайп вниз двигает весь плеер — видео вместе со страницей ролика, — а под ним видна вкладка
+            .graphicsLayer {
+                val p = (collapseOffset.value / size.height.coerceAtLeast(1f)).coerceIn(0f, 1f)
+                translationY = collapseOffset.value
+                scaleX = 1f - p * 0.12f
+                scaleY = 1f - p * 0.12f
+                alpha = 1f - p * 0.5f
+                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 0f)
+            }
             .background(Color.Black)
     ) {
         // Панель «Эпизоды» не перекрывает видео: видео плавно ужимается и сдвигается
@@ -504,6 +712,16 @@ fun VideoPlayerScreen(
                     })
                 }
                 playerViewRef = pv
+                // Субтитры — по центру плеера и с отступом от нижнего края. Свои позиции из файла (YouTube прижимает
+                // автосубтитры к левому краю) не используются: встроенный вывод скрыт, текст показывает свой слой
+                pv.subtitleView?.visibility = View.GONE
+                subtitleLayer = androidx.media3.ui.SubtitleView(ctx).apply {
+                    setUserDefaultStyle()
+                    setUserDefaultTextSize()
+                    setBottomPaddingFraction(0.09f)
+                }.also { s ->
+                    pv.overlayFrameLayout?.addView(s, android.widget.FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+                }
                 // Одиночное нажатие показывает/скрывает интерфейс, двойное — перемотка или заполнение экрана.
                 // Срабатывает только на «пустом» месте: кнопки панели получают нажатия сами.
                 val detector = GestureDetector(ctx, object : GestureDetector.SimpleOnGestureListener() {
@@ -541,12 +759,13 @@ fun VideoPlayerScreen(
                 layout.playerView.setFullscreenButtonState(if (tablet && ytId != null) !watchPage else landscape)
                 layout.listener = gestureListener
                 layout.gesturesEnabled = !inPip
-                if (layout.playerView.player !== controller) {
-                    layout.playerView.player = controller
+                val target = navPlayer ?: controller
+                if (layout.playerView.player !== target) {
+                    layout.playerView.player = target
                     // При открытии интерфейс скрыт — он появляется только по тапу
                     layout.playerView.hideController()
                 }
-                layout.playerView.useController = !inPip
+                layout.playerView.useController = !inPip && nextUp == null
                 layout.playerView.resizeMode = if (fillScreen && !inPip) AspectRatioFrameLayout.RESIZE_MODE_ZOOM else AspectRatioFrameLayout.RESIZE_MODE_FIT
                 // Скорость и дорожки — в наших настройках плеера, встроенная шестерёнка скрыта
                 layout.playerView.findViewById<View>(androidx.media3.ui.R.id.exo_settings)?.visibility = View.GONE
@@ -594,14 +813,7 @@ fun VideoPlayerScreen(
             modifier = Modifier
                 .fillMaxSize()
                 // На странице ролика видео начинается под строкой состояния — не заходит на камеру
-                .padding(top = watchTopInset, end = endInset, bottom = bottomInset)
-                .graphicsLayer {
-                    val p = (collapseOffset.value / size.height.coerceAtLeast(1f)).coerceIn(0f, 1f)
-                    translationY = collapseOffset.value
-                    scaleX = 1f - p * 0.3f
-                    scaleY = 1f - p * 0.3f
-                    alpha = 1f - p * 0.6f
-                },
+                .padding(top = watchTopInset, end = endInset, bottom = bottomInset),
         )
 
         // Индикатор яркости / громкости
@@ -620,8 +832,21 @@ fun VideoPlayerScreen(
             }
         }
 
+        // «Следующее видео» — превью следующего ролика на месте видео, под ним «Отмена» и «Воспроизвести»
+        nextUp?.let { next ->
+            if (!inPip) NextUpOverlay(
+                next,
+                // Ровно область видео (как у самого плеера); верхняя строка с кнопками — поверх
+                modifier = Modifier.fillMaxSize().padding(top = watchTopInset, end = endInset, bottom = bottomInset),
+                // Отступ — только до низа верхней строки (она отсчитывается от верха экрана, а область видео — от watchTopInset)
+                topBar = maxOf(0.dp, topDp + 48.dp - watchTopInset) + 4.dp,
+                sidePadding = maxOf(startDp, endDp) + 12.dp,
+                onCancel = { nextCancelledFor = ytId; nextUp = null },
+                onPlay = { playNext(next) },
+            )
+        }
         AnimatedVisibility(
-            visible = controlsVisible && !inPip,
+            visible = (controlsVisible || nextUp != null) && !inPip,
             enter = fadeIn(), exit = fadeOut(),
             modifier = Modifier
                 .align(Alignment.TopStart)
@@ -638,7 +863,9 @@ fun VideoPlayerScreen(
                 IconButton(onClick = onClose) {
                     Icon(Icons.Rounded.KeyboardArrowDown, tr(R.string.action_collapse), tint = Color.White, modifier = Modifier.size(30.dp))
                 }
-                Column(Modifier.weight(1f)) {
+                if (nextUp != null) {
+                    Text(tr(R.string.yt_next_up), color = Color.White.copy(alpha = 0.85f), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                } else Column(Modifier.weight(1f)) {
                     Text(
                         title, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis,
                         style = MaterialTheme.typography.titleMedium,
@@ -651,18 +878,29 @@ fun VideoPlayerScreen(
                         )
                     }
                 }
-                if (hasQueue) {
+                // Переключатель «Следующее видео» — рядом с эпизодами (только у роликов YouTube)
+                if (ytId != null && nextUp == null) {
+                    androidx.compose.material3.Switch(
+                        checked = autoplay, onCheckedChange = { AppSettings.setYtAutoplay(it) },
+                        thumbContent = {
+                            Icon(if (autoplay) androidx.compose.material.icons.Icons.Rounded.PlayArrow else androidx.compose.material.icons.Icons.Rounded.Pause, tr(R.string.yt_autoplay), Modifier.size(14.dp))
+                        },
+                        colors = com.offplayer.app.ui.appSwitchColors(),
+                        modifier = Modifier.scale(0.72f),
+                    )
+                }
+                if (hasQueue && nextUp == null) {
                     IconButton(onClick = { panel = if (panel == PlayerPanel.QUEUE) PlayerPanel.NONE else PlayerPanel.QUEUE }) {
                         Icon(Icons.AutoMirrored.Rounded.PlaylistPlay, tr(R.string.list), tint = if (panel == PlayerPanel.QUEUE) Accent else Color.White)
                     }
                 }
-                if (chapters.isNotEmpty()) {
+                if (chapters.isNotEmpty() && nextUp == null) {
                     IconButton(onClick = { panel = if (chaptersOpen) PlayerPanel.NONE else PlayerPanel.CHAPTERS }) {
                         Icon(Icons.AutoMirrored.Rounded.FormatListBulleted, tr(R.string.chapters), tint = if (chaptersOpen) Accent else Color.White)
                     }
                 }
                 // Скорость, фоновое воспроизведение, «картинка в картинке»
-                IconButton(onClick = { settingsOpen = true }) { Icon(Icons.Rounded.Settings, tr(R.string.player_settings), tint = Color.White) }
+                if (nextUp == null) IconButton(onClick = { settingsOpen = true }) { Icon(Icons.Rounded.Settings, tr(R.string.player_settings), tint = Color.White) }
                 // Стрелка вниз сворачивает видео в фон, крестик — закрывает полностью
                 IconButton(onClick = onStop) { Icon(Icons.Rounded.Close, tr(R.string.close_video), tint = Color.White) }
             }

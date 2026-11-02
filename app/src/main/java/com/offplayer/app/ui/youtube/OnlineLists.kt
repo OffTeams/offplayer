@@ -1,5 +1,6 @@
 package com.offplayer.app.ui.youtube
 
+import com.offplayer.app.ui.stableStatusBarsPadding
 import com.offplayer.app.tr
 import com.offplayer.app.R
 
@@ -170,7 +171,7 @@ fun OnlinePlaylistScreen(id: String, onBack: () -> Unit) {
             else -> MusicController.playTracks(p.items.map { OnlineStore.track(it, podcast = p.tab == OnlineTab.PODCASTS) }, startIndex = index, respectOrder = true)
         }
     }
-    Column(Modifier.fillMaxSize().statusBarsPadding()) {
+    Column(Modifier.fillMaxSize().then(Modifier.stableStatusBarsPadding())) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, tr(R.string.action_back)) }
             Column(Modifier.weight(1f)) {

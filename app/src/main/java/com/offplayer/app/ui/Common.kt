@@ -1,5 +1,8 @@
 package com.offplayer.app.ui
 
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.ui.composed
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import com.offplayer.app.tr
 import com.offplayer.app.trn
 import com.offplayer.app.R
@@ -454,3 +457,30 @@ fun EmptyState(icon: ImageVector, title: String, subtitle: String, modifier: Mod
         }
     }
 }
+
+/** Фирменный красный — значок YouTube, полоса просмотренного, включённые переключатели. */
+val BrandRed = androidx.compose.ui.graphics.Color(0xFFFF0033)
+
+/** Переключатели приложения: включённый — красный, как значок YouTube (текст остаётся серо-голубым). */
+@androidx.compose.runtime.Composable
+fun appSwitchColors() = androidx.compose.material3.SwitchDefaults.colors(
+    checkedTrackColor = BrandRed,
+    checkedBorderColor = BrandRed,
+    checkedThumbColor = androidx.compose.ui.graphics.Color.White,
+)
+
+/**
+ * Отступ под строкой состояния, который не пропадает, когда строка скрыта (её прячет открытый видеоплеер).
+ * Обычный statusBarsPadding в это время становится нулевым — при сворачивании плеера шапки вкладок
+ * на миг залезали под строку состояния.
+ */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+fun androidx.compose.ui.Modifier.stableStatusBarsPadding(): androidx.compose.ui.Modifier = composed {
+    windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.Companion.statusBarsIgnoringVisibility)
+}
+
+/** То же для TopAppBar (его windowInsets). */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@androidx.compose.runtime.Composable
+fun stableTopBarInsets(): androidx.compose.foundation.layout.WindowInsets =
+    androidx.compose.foundation.layout.WindowInsets.Companion.statusBarsIgnoringVisibility

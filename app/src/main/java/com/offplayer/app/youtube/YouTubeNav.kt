@@ -21,6 +21,19 @@ object YouTubeNav {
     /** Растёт, когда нужно открыть вкладку YouTube на ленте Shorts (уведомление о Shorts). */
     val openShortsTab = MutableStateFlow(0)
 
+    /** Комментарий, который нужно открыть вместе с роликом (из оповещения об ответе). */
+    data class LinkedComment(val videoId: String, val commentId: String, val params: String?)
+    @Volatile var linkedComment: LinkedComment? = null
+
+    /** Растёт, когда нужно перейти на вкладку YouTube (уведомление об ответе на комментарий). */
+    val openYoutubeTab = MutableStateFlow(0)
+
+    /** Растёт, когда листают страницу ролика (похожие под комментариями) — отменяет «Следующее видео». */
+    val relatedScrolled = MutableStateFlow(0)
+
+    /** Открыть страницу комментариев ролика (оповещение об ответе): без запуска ролика. */
+    val commentsPage = MutableStateFlow<LinkedComment?>(null)
+
     fun download(url: String) {
         downloadRequest.value = url
     }

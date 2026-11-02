@@ -108,4 +108,15 @@
     <string name="yt_push">YouTube の通知</string>
     <string name="yt_push_desc">登録チャンネルの新着動画や返信をアプリの通知で</string>
     <string name="yt_notifications_channel">YouTube の通知</string>
+    <string name="yt_hide_replies">返信を非表示</string>
+    <string name="yt_more_replies">他の返信を表示</string>
+    <string name="yt_replies_title">返信</string>
+    <string name="yt_your_reply">返信を入力…</string>
+    <string name="yt_all">すべて</string>
+    <string name="yt_reply">返信</string>
+    <string name="yt_linked_reply">リンクから開いた返信</string>
+    <string name="yt_comments_for">動画「%1$s」のコメント</string>
+    <string name="yt_next_up">次の動画</string>
+    <string name="yt_play_next">再生</string>
+    <string name="yt_autoplay">次の動画を自動再生</string>
 </resources>

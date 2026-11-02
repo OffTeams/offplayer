@@ -23,6 +23,9 @@ data class YtNotification(
     /** Оповещение о Shorts — открывается в ленте Shorts. */
     val isShort: Boolean,
     val read: Boolean,
+    /** Комментарий, о котором оповещение (ответ на ваш комментарий и т. п.): его id и параметры открытия ролика. */
+    val commentId: String? = null,
+    val watchParams: String? = null,
 )
 
 /** Оповещения аккаунта YouTube — тот же список, что под колокольчиком на сайте. */
@@ -39,7 +42,7 @@ object YtNotifications {
 
     private const val PREFS = "yt_notifications"
     private const val KEY_PUSH = "push"
-    private const val KEY_POSTED = "posted"
+    private const val KEY_POSTED = "posted2" // ключи сменились — новый набор, первая проверка только запоминает
 
     private fun prefs(context: android.content.Context) = context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
 
@@ -51,29 +54,81 @@ object YtNotifications {
         YtNotifyWorker.schedule(context)
     }
 
-    /** Непрочитанные оповещения, о которых ещё не было уведомления. Первый запуск только запоминает текущие. */
+    /**
+     * Оповещения, о которых ещё не было уведомления. Признак «прочитано» не учитывается: YouTube сбрасывает его,
+     * как только список открывают где угодно (в приложении YouTube, на сайте, у нас) — новые определяются
+     * по запомненным ключам. Первый запуск только запоминает текущие, чтобы не завалить уведомлениями.
+     */
     suspend fun listForPush(context: android.content.Context): List<YtNotification> {
-        val all = list().filter { !it.read }
+        val all = list(markSeen = false)
         val p = prefs(context)
         val first = !p.contains(KEY_POSTED)
         val posted = p.getStringSet(KEY_POSTED, emptySet()).orEmpty()
-        val key = { n: YtNotification -> (n.videoId ?: n.channelId ?: "") + "|" + n.text.hashCode() }
+        // Ключ — ролик (или канал, или комментарий): тексты одного оповещения у YouTube бывают разными
+        val key = { n: YtNotification -> n.commentId ?: n.videoId ?: n.channelId ?: n.text.hashCode().toString() }
         val fresh = all.filter { key(it) !in posted }
         // Храним только ключи последних оповещений — список не растёт бесконечно
         p.edit().putStringSet(KEY_POSTED, (all.map(key) + posted).take(200).toSet()).apply()
         return if (first) emptyList() else fresh
     }
 
-    suspend fun list(): List<YtNotification> = withContext(Dispatchers.IO) {
+    suspend fun list(markSeen: Boolean = true): List<YtNotification> = withContext(Dispatchers.IO) {
+        // Вкладка «Уведомления» приложения YouTube (Важное / Сегодня / …) — полнее меню колокольчика сайта
+        val inbox = runCatching { YouTubeApi.authPost("browse", JSONObject().put("browseId", "FEnotifications_inbox")) }
+        val fromInbox = ArrayList<YtNotification>()
+        inbox.getOrNull()?.let { collect(it, fromInbox) }
+        if (fromInbox.isNotEmpty()) {
+            val all = ArrayList(fromInbox)
+            var token = continuationOf(inbox.getOrNull())
+            var pages = 0
+            while (token != null && pages < 3) {
+                val more = runCatching { YouTubeApi.authPost("browse", JSONObject().put("continuation", token)) }.getOrNull() ?: break
+                val before = all.size
+                collect(more, all)
+                if (all.size == before) break
+                token = continuationOf(more)
+                pages++
+            }
+            if (markSeen) _unseen.value = 0
+            return@withContext all.distinctBy { (it.videoId ?: it.channelId ?: "") + it.text }
+        }
         val r = YouTubeApi.authPost(
             "notification/get_notification_menu",
             JSONObject().put("notificationsMenuRequestType", "NOTIFICATIONS_MENU_REQUEST_TYPE_INBOX"),
         )
         val out = ArrayList<YtNotification>()
         collect(r, out)
+        // Длинный список приходит частями — догружаем продолжения, как при прокрутке меню на сайте
+        var token = continuationOf(r)
+        var pages = 0
+        while (token != null && pages < 3) {
+            val more = runCatching {
+                YouTubeApi.authPost("notification/get_notification_menu", JSONObject().put("ctoken", token))
+            }.getOrNull() ?: break
+            val before = out.size
+            collect(more, out)
+            if (out.size == before) break
+            token = continuationOf(more)
+            pages++
+        }
         // Список открыт — YouTube считает оповещения просмотренными
-        _unseen.value = 0
-        out
+        if (markSeen) _unseen.value = 0
+        out.distinctBy { (it.videoId ?: it.channelId ?: "") + it.text }
+    }
+
+    /** Токен следующей части списка: continuationCommand.token или getNotificationMenuRequest.ctoken. */
+    private fun continuationOf(node: Any?): String? {
+        when (node) {
+            is JSONObject -> {
+                node.optJSONObject("continuationCommand")?.optString("token")?.takeIf { it.isNotEmpty() }?.let { return it }
+                node.optJSONObject("getNotificationMenuRequest")?.optString("ctoken")?.takeIf { it.isNotEmpty() }?.let { return it }
+                // Продолжение списка на сайте — getNotificationMenuEndpoint.ctoken в последнем элементе раздела
+                node.optJSONObject("getNotificationMenuEndpoint")?.optString("ctoken")?.takeIf { it.isNotEmpty() }?.let { return it }
+                for (k in node.keys()) continuationOf(node.opt(k))?.let { return it }
+            }
+            is JSONArray -> for (i in 0 until node.length()) continuationOf(node.opt(i))?.let { return it }
+        }
+        return null
     }
 
     private fun collect(node: Any?, out: MutableList<YtNotification>) {
@@ -106,7 +161,22 @@ object YtNotifications {
             channelId = channelId,
             isShort = "reelWatchEndpoint" in all || "/shorts/" in all,
             read = n.optBoolean("read", true),
+            // Ссылка на комментарий — параметр lc (как в адресе youtube.com/watch?v=…&lc=…)
+            commentId = Regex("""[?&]lc=([\w.-]+)""").find(all)?.groupValues?.get(1)
+                ?: Regex(""""linkedCommentId":"([\w.-]+)""").find(all)?.groupValues?.get(1),
+            watchParams = watchEndpointOf(n)?.optString("params")?.takeIf { it.isNotEmpty() },
         )
+    }
+
+    private fun watchEndpointOf(node: Any?): JSONObject? {
+        when (node) {
+            is JSONObject -> {
+                node.optJSONObject("watchEndpoint")?.let { return it }
+                for (k in node.keys()) watchEndpointOf(node.opt(k))?.let { return it }
+            }
+            is JSONArray -> for (i in 0 until node.length()) watchEndpointOf(node.opt(i))?.let { return it }
+        }
+        return null
     }
 
     private fun text(o: JSONObject?): String {

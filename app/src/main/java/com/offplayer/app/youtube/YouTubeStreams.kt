@@ -98,7 +98,7 @@ object YouTubeStreams {
         val info = info(youtubeId) ?: return emptyList()
         if (info.streamType == StreamType.LIVE_STREAM || info.streamType == StreamType.AUDIO_LIVE_STREAM) return emptyList()
         return info.videoOnlyStreams
-            .filter { it.isUrl && it.deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP && it.format == MediaFormat.MPEG_4 }
+            .filter { playable(it) }
             .map { min(it.width, it.height) }
             .filter { it > 0 }
             .distinct()
@@ -113,6 +113,32 @@ object YouTubeStreams {
         synchronized(chosen) { chosen[youtubeId] = side }
         synchronized(cache) { cache[youtubeId] = System.currentTimeMillis() to stream }
         stream
+    }
+
+    /**
+     * Поток видео, который телефон может воспроизвести: MP4 (H.264, AV1) и WebM (VP9) — выше 1080p YouTube
+     * отдаёт только VP9 и AV1. AV1 — только если в телефоне есть его декодер.
+     */
+    private fun playable(s: org.schabi.newpipe.extractor.stream.VideoStream): Boolean {
+        if (!s.isUrl || s.deliveryMethod != DeliveryMethod.PROGRESSIVE_HTTP) return false
+        if (s.format != MediaFormat.MPEG_4 && s.format != MediaFormat.WEBM) return false
+        return !(s.codec.orEmpty().startsWith("av01")) || hasAv1
+    }
+
+    /** Предпочтение кодеков при одинаковом качестве: H.264 надёжнее всего, затем VP9, затем AV1. */
+    private fun codecScore(s: org.schabi.newpipe.extractor.stream.VideoStream): Int = s.codec.orEmpty().let {
+        when {
+            it.startsWith("avc1") -> 3
+            it.startsWith("vp9") || it.startsWith("vp09") -> 2
+            else -> 1
+        }
+    }
+
+    private val hasAv1: Boolean by lazy {
+        runCatching {
+            android.media.MediaCodecList(android.media.MediaCodecList.REGULAR_CODECS).codecInfos
+                .any { !it.isEncoder && it.supportedTypes.any { t -> t.equals("video/av01", true) } }
+        }.getOrDefault(false)
     }
 
     /** Ограничение качества — по короткой стороне кадра, чтобы вертикальные Shorts не играли в низком. */
@@ -216,10 +242,11 @@ object YouTubeStreams {
         val limit = maxSide()
         // H.264 в MP4 аппаратно декодируется на любом телефоне
         val video1 = info.videoOnlyStreams
-            .filter { it.isUrl && it.deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP && it.format == MediaFormat.MPEG_4 && min(it.width, it.height) <= (side ?: limit) }
+            .filter { playable(it) && min(it.width, it.height) <= (side ?: limit) }
+            // Лучшее качество в пределах настройки (или выбранное в плеере), при равном — более надёжный кодек
             .sortedWith(compareByDescending<org.schabi.newpipe.extractor.stream.VideoStream> { side != null && min(it.width, it.height) == side }
-                .thenByDescending { it.codec?.startsWith("avc1") == true }
-                .thenByDescending { min(it.width, it.height) }.thenByDescending { it.fps })
+                .thenByDescending { min(it.width, it.height) }
+                .thenByDescending { codecScore(it) }.thenByDescending { it.fps })
             .firstOrNull()
         // Звук — оригинальная дорожка (а не дубляж), лучшая по битрейту
         val audio = info.audioStreams

@@ -260,6 +260,7 @@ object VideoController {
         private set
 
     fun play(videos: List<Video>, index: Int, listTitle: String? = null) {
+        ytHistory.clear()
         watchPage = false
         queueTitle = listTitle
         expectedAspect = videos.getOrNull(index)?.let { v -> if (v.width > 0 && v.height > 0) v.width.toFloat() / v.height else 0f } ?: 0f
@@ -267,7 +268,19 @@ object VideoController {
     }
 
     /** Ролик YouTube, играющий онлайн: обложка — превью YouTube, эпизоды и SponsorBlock — по его playerId. */
-    fun playStream(stream: com.offplayer.app.youtube.YtStream) {
+    /** Ролики YouTube, открытые подряд в плеере: «предыдущее» возвращает к прошлому, а не в начало ролика. */
+    private val ytHistory = ArrayList<String>()
+
+    fun canGoBack(): Boolean = ytHistory.size >= 2
+    fun previousYoutubeId(): String? = ytHistory.getOrNull(ytHistory.size - 2)
+
+    /** back — открыт кнопкой «предыдущее»: текущий ролик убирается из истории. */
+    fun playStream(stream: com.offplayer.app.youtube.YtStream, back: Boolean = false) {
+        if (back && ytHistory.size >= 2) ytHistory.removeAt(ytHistory.lastIndex)
+        else if (ytHistory.lastOrNull() != stream.youtubeId) {
+            ytHistory += stream.youtubeId
+            if (ytHistory.size > 50) ytHistory.removeAt(0)
+        }
         queueTitle = null
         watchPage = true
         // Как в YouTube: обычный ролик открывается на весь экран в альбомной ориентации, вертикальный — в портретной
@@ -330,6 +343,7 @@ object VideoController {
 
     fun close(stopPlayback: Boolean) {
         saveResume()
+        if (stopPlayback) ytHistory.clear()
         val wasOpen = _open.value
         _open.value = false
         if (stopPlayback) {

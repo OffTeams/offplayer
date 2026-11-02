@@ -1,5 +1,12 @@
 package com.offplayer.app.ui.youtube
 
+import androidx.compose.foundation.layout.fillMaxHeight
+
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+
+import androidx.compose.ui.draw.blur
+
+import com.offplayer.app.ui.stableStatusBarsPadding
 import com.offplayer.app.tr
 import com.offplayer.app.R
 
@@ -46,6 +53,7 @@ import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.NorthWest
 import androidx.compose.material.icons.rounded.BookmarkBorder
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.PersonAdd
@@ -138,7 +146,7 @@ fun YouTubeScreen(active: Boolean, onDownload: (String) -> Unit) {
     val pages = androidx.compose.foundation.pager.rememberPagerState { 3 }
     val onShorts = pages.currentPage == 1
     LaunchedEffect(pages.isScrollInProgress) {
-        if (!pages.isScrollInProgress && kotlin.math.abs(pages.currentPageOffsetFraction) > 0.001f) pages.animateScrollToPage(pages.currentPage)
+        if (!pages.isScrollInProgress && kotlin.math.abs(pages.currentPageOffsetFraction) > 0.001f) pages.animateScrollToPage(com.offplayer.app.ui.settleTarget(pages))
     }
     // Стек ленты: корень — «Главная», «Подписки» или тема, сверху — поиск и каналы
     var stack by remember { mutableStateOf(listOf<YtFeed>(YtFeed.Home)) }
@@ -156,9 +164,14 @@ fun YouTubeScreen(active: Boolean, onDownload: (String) -> Unit) {
     val accountVersion by YouTubeAccount.version.collectAsStateWithLifecycle()
     var opening by remember { mutableStateOf<String?>(null) }
 
+    // Номер «поколения» лент: растёт при входе, выходе и смене аккаунта. Загрузка, начатая до смены,
+    // не должна попасть в новую ленту (иначе после входа вкладка оставалась пустой или со старыми роликами)
+    val epoch = remember { intArrayOf(0) }
+
     fun loadMore(reset: Boolean = false, target: YtFeed = feed) {
         val s = states.getOrPut(target) { FeedState() }
         if (s.loading || (!reset && s.loaded && s.continuation == null)) return
+        val started = epoch[0]
         s.loading = true
         s.error = null
         scope.launch {
@@ -166,13 +179,16 @@ fun YouTubeScreen(active: Boolean, onDownload: (String) -> Unit) {
                 // Обновление свайпом: первая страница YouTube почти не меняется, поэтому берём следующую —
                 // это новые ролики; ими заменяется весь старый список
                 val next = s.continuation
-                if (reset && s.refreshing && next != null) {
+                // Только для рекомендаций (главная и темы): история и подписки обновляются с начала — там важны последние ролики
+                val recommendations = target == YtFeed.Home || target is YtFeed.Chip
+                if (reset && s.refreshing && next != null && recommendations) {
                     runCatching { YouTubeApi.load(target, next) }.getOrNull()?.takeIf { it.items.isNotEmpty() }
                         ?.let { return@runCatching it }
                 }
                 YouTubeApi.load(target, if (reset) null else s.continuation)
             }
                 .onSuccess { page ->
+                    if (started != epoch[0]) return@onSuccess
                     if (reset) { s.items.clear(); s.shorts.clear() }
                     // Shorts живут на своей странице — в списках роликов их нет; в подписках и истории — строкой сверху
                     page.items.forEach { v ->
@@ -186,11 +202,15 @@ fun YouTubeScreen(active: Boolean, onDownload: (String) -> Unit) {
                         chips += page.chips
                     }
                     // Новая лента начинается с начала, а не с места, где остановились в старой
-                    if (reset) s.list.scrollToItem(0)
+                    // Прокрутка — отдельно: у ленты, которая сейчас не на экране (история), прокрутка ждёт
+                    // первой отрисовки и не завершалась — загрузка «висела» и обновление не заканчивалось
+                    if (reset) scope.launch { runCatching { s.list.scrollToItem(0) } }
                 }
-                .onFailure { s.error = it.message ?: it.javaClass.simpleName }
-            s.loading = false
-            s.refreshing = false
+                .onFailure { if (started == epoch[0]) s.error = it.message ?: it.javaClass.simpleName }
+            if (started == epoch[0]) {
+                s.loading = false
+                s.refreshing = false
+            }
         }
     }
 
@@ -198,14 +218,15 @@ fun YouTubeScreen(active: Boolean, onDownload: (String) -> Unit) {
     LaunchedEffect(signedIn, accountVersion) {
         // Состояния обнуляются на месте, а не заменяются: экран держит ссылки на них, и новая
         // загрузка должна попасть в тот же объект, иначе вкладка останется пустой (так было при запуске)
+        epoch[0]++
         states.values.forEach { s ->
-            if (!s.loading) {
-                s.items.clear()
-                s.shorts.clear()
-                s.loaded = false
-                s.continuation = null
-                s.error = null
-            }
+            s.items.clear()
+            s.shorts.clear()
+            s.loaded = false
+            s.loading = false
+            s.refreshing = false
+            s.continuation = null
+            s.error = null
         }
         chips.clear()
         stack = listOf(YtFeed.Home)
@@ -222,7 +243,10 @@ fun YouTubeScreen(active: Boolean, onDownload: (String) -> Unit) {
             .collect { last -> if (last >= state.items.size - 5 && state.items.isNotEmpty()) loadMore() }
     }
 
-    BackHandler(active && (onShorts || pages.currentPage == 2)) { scope.launch { pages.animateScrollToPage(0) } }
+    // Из истории — сразу на ленту, без пролистывания через Shorts
+    BackHandler(active && (onShorts || pages.currentPage == 2)) {
+        scope.launch { if (pages.currentPage == 2) pages.scrollToPage(0) else pages.animateScrollToPage(0) }
+    }
     // Нажатие на открытую вкладку YouTube в нижнем меню: закрыть всё поверх и вернуть «Главную» к началу
     val homeTop by com.offplayer.app.youtube.YouTubeNav.homeTop.collectAsStateWithLifecycle()
     LaunchedEffect(homeTop) {
@@ -233,6 +257,9 @@ fun YouTubeScreen(active: Boolean, onDownload: (String) -> Unit) {
         pages.animateScrollToPage(0)
         states[YtFeed.Home]?.list?.animateScrollToItem(0)
     }
+    val commentsPage by com.offplayer.app.youtube.YouTubeNav.commentsPage.collectAsStateWithLifecycle()
+    // Страница комментариев поверх уведомлений: «назад» возвращает к ним
+    LaunchedEffect(commentsPage) { if (commentsPage != null) pages.scrollToPage(0) }
     val shortsTab by com.offplayer.app.youtube.YouTubeNav.openShortsTab.collectAsStateWithLifecycle()
     LaunchedEffect(shortsTab) {
         if (shortsTab == 0) return@LaunchedEffect
@@ -254,10 +281,14 @@ fun YouTubeScreen(active: Boolean, onDownload: (String) -> Unit) {
     // История открывается своей страницей справа от Shorts — загружается, когда до неё долистали
     // История перезагружается при каждом открытии и после закрытия плеера — в ней сразу видно только что просмотренное
     val playerOpen by VideoController.open.collectAsStateWithLifecycle()
+    var historyAfterPlayer by remember { mutableStateOf(false) }
+    LaunchedEffect(playerOpen) { if (playerOpen) historyAfterPlayer = true }
     LaunchedEffect(pages.currentPage == 2, signedIn, accountVersion, playerOpen) {
         if (playerOpen) return@LaunchedEffect
-        // Отметка о просмотре доходит до YouTube не мгновенно
-        kotlinx.coroutines.delay(1500)
+        // Открыли историю — обновляем сразу и в фоне (старый список виден, пока грузится новый);
+        // после закрытия плеера — с паузой: отметка о просмотре доходит до YouTube не мгновенно
+        if (historyAfterPlayer) kotlinx.coroutines.delay(1500)
+        historyAfterPlayer = false
         if (pages.currentPage == 2 && signedIn) {
             val s = states.getOrPut(YtFeed.History) { FeedState() }
             if (!s.loading) { s.refreshing = false; loadMore(reset = true, target = YtFeed.History) }
@@ -277,13 +308,13 @@ fun YouTubeScreen(active: Boolean, onDownload: (String) -> Unit) {
     }
     // Shorts на экране — нижнее меню и строка состояния становятся чёрными
     LaunchedEffect(onShorts, active) { com.offplayer.app.youtube.YouTubeNav.shortsOpen.value = active && onShorts }
-    // Приложение открыли (или вернулись в него) — лента обновляется сама, как в YouTube, чтобы вкладка не была пустой
+    // Вернулись в приложение — лента остаётся как была (новая загружается только при холодном запуске,
+    // когда приложение было закрыто); пустую ленту догружаем
     androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_START) {
         YouTubeAccount.refresh()
         val s = states[feed]
         val root = feed == YtFeed.Home || feed == YtFeed.Subscriptions || feed is YtFeed.Chip
-        if (root && (s == null || !s.loaded || s.items.isEmpty())) loadMore(reset = true)
-        else if (root && s != null && !s.loading) { s.refreshing = true; loadMore(reset = true) }
+        if (root && s != null && !s.loading && s.loaded && s.items.isEmpty()) loadMore(reset = true)
     }
 
     val play: (YtVideo) -> Unit = { v ->
@@ -322,18 +353,23 @@ fun YouTubeScreen(active: Boolean, onDownload: (String) -> Unit) {
                 signedIn = signedIn,
                 opening = opening,
                 onSignIn = { login = true },
-                onBack = { scope.launch { pages.animateScrollToPage(0) } },
+                onBack = { scope.launch { pages.scrollToPage(0) } },
                 onMore = { loadMore(target = YtFeed.History) },
+                onRefresh = {
+                    val s = states.getOrPut(YtFeed.History) { FeedState() }
+                    s.refreshing = true
+                    loadMore(reset = true, target = YtFeed.History)
+                },
                 onPlay = play,
                 onShort = openShort,
                 onDownload = onDownload,
-                onChannel = { id, name -> stack = stack + YtFeed.Channel(id, name); scope.launch { pages.animateScrollToPage(0) } },
+                onChannel = { id, name -> stack = stack + YtFeed.Channel(id, name); scope.launch { pages.scrollToPage(0) } },
             )
             return@HorizontalPager
         }
         if (page == 1) {
             // Shorts: всё чёрное, включая полосу под строкой состояния
-            Box(Modifier.fillMaxSize().background(Color.Black).statusBarsPadding()) {
+            Box(Modifier.fillMaxSize().background(Color.Black).then(Modifier.stableStatusBarsPadding())) {
                 ShortsFeed(
                     active = active && onShorts,
                     onDownload = onDownload,
@@ -346,7 +382,7 @@ fun YouTubeScreen(active: Boolean, onDownload: (String) -> Unit) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             // Широкий экран (планшет или альбомная ориентация): сетка карточек и поиск значком, как в YouTube
             val wide = maxWidth >= 600.dp
-            Column(Modifier.fillMaxSize().statusBarsPadding()) {
+            Column(Modifier.fillMaxSize().then(Modifier.stableStatusBarsPadding())) {
                 // Верхняя строка как в YouTube: значок и «OFFTube» слева; поиск, колокольчик и аккаунт справа.
                 // Поиск открывается значком — поле занимает строку целиком
                 Row(Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 4.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -368,7 +404,12 @@ fun YouTubeScreen(active: Boolean, onDownload: (String) -> Unit) {
                     AccountButton(signedIn, onSignIn = { login = true }, onAddAccount = { addAccount = true })
                 }
 
-                if (notifOpen) {
+                if (searchOpen) {
+                    SearchSuggestions(query, Modifier.weight(1f).fillMaxWidth(),
+                        onPick = { query = it; search() },
+                        onFill = { query = it },
+                    )
+                } else if (notifOpen) {
                     NotificationsPage(Modifier.weight(1f).fillMaxWidth(), onShort = { id ->
                         // Shorts открывается в своей ленте, а не в обычном плеере
                         notifOpen = false
@@ -399,7 +440,8 @@ fun YouTubeScreen(active: Boolean, onDownload: (String) -> Unit) {
                         }
                         chip(false, tr(R.string.yt_shorts)) { scope.launch { pages.animateScrollToPage(1) } }
                         // История — своя страница, открывается так же, как Shorts
-                        chip(false, tr(R.string.yt_history)) { scope.launch { pages.animateScrollToPage(2) } }
+                        // История — сразу, без пролистывания через Shorts
+                        chip(false, tr(R.string.yt_history)) { scope.launch { pages.scrollToPage(2) } }
                         chip(feed == YtFeed.Subscriptions, tr(R.string.yt_subscriptions)) { stack = listOf(YtFeed.Subscriptions) }
                         // Темы с YouTube — сразу за «Подписками», как в оригинальном приложении
                         chips.forEach { (title, token) ->
@@ -470,6 +512,15 @@ fun YouTubeScreen(active: Boolean, onDownload: (String) -> Unit) {
                 }
                 }
             }
+            // Страница комментариев из оповещения об ответе — поверх ленты
+            commentsPage?.let { link ->
+                CommentsPage(
+                    link.videoId, link.commentId, link.params,
+                    onBack = { com.offplayer.app.youtube.YouTubeNav.commentsPage.value = null },
+                    onOpenVideo = { title -> play(YtVideo(link.videoId, title, "", null, null, "", "https://i.ytimg.com/vi/${link.videoId}/hqdefault.jpg")) },
+                    modifier = Modifier.fillMaxSize().then(Modifier.stableStatusBarsPadding()),
+                )
+            }
         }
     }
 
@@ -517,12 +568,42 @@ private fun SearchField(query: String, onChange: (String) -> Unit, onSearch: () 
     )
 }
 
+/** Подсказки поиска по мере ввода, как в YouTube: нажатие ищет, стрелка подставляет текст в строку. */
+@Composable
+private fun SearchSuggestions(query: String, modifier: Modifier, onPick: (String) -> Unit, onFill: (String) -> Unit) {
+    var items by remember { mutableStateOf<List<String>>(emptyList()) }
+    LaunchedEffect(query) {
+        val q = query.trim()
+        if (q.isEmpty()) { items = emptyList(); return@LaunchedEffect }
+        kotlinx.coroutines.delay(200)
+        items = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.offplayer.app.youtube.NpSource.suggestions(q) }
+    }
+    LazyColumn(modifier) {
+        items(items) { s ->
+            Row(
+                Modifier.fillMaxWidth().clickable { onPick(s) }.padding(start = 16.dp, end = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Rounded.Search, null, Modifier.size(24.dp))
+                Text(s, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(horizontal = 16.dp, vertical = 14.dp))
+                IconButton(onClick = { onFill(s) }) { Icon(Icons.Rounded.NorthWest, null) }
+            }
+        }
+    }
+}
+
 /** Колокольчик со значком непросмотренных; открывает и закрывает страницу уведомлений. */
 @Composable
 private fun NotificationsButton(signedIn: Boolean, selected: Boolean, onSignIn: () -> Unit, onOpen: () -> Unit) {
     val scope = rememberCoroutineScope()
     val unseen by com.offplayer.app.youtube.YtNotifications.unseen.collectAsStateWithLifecycle()
-    LaunchedEffect(signedIn) { com.offplayer.app.youtube.YtNotifications.refreshUnseen() }
+    // Счётчик на колокольчике обновляется и пока приложение открыто
+    LaunchedEffect(signedIn) {
+        while (true) {
+            com.offplayer.app.youtube.YtNotifications.refreshUnseen()
+            kotlinx.coroutines.delay(3 * 60_000L)
+        }
+    }
     androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_START) {
         scope.launch { com.offplayer.app.youtube.YtNotifications.refreshUnseen() }
     }
@@ -543,6 +624,8 @@ private fun NotificationsPage(modifier: Modifier, onShort: (String) -> Unit, onO
     var items by remember { mutableStateOf<List<com.offplayer.app.youtube.YtNotification>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var refreshing by remember { mutableStateOf(false) }
+    // 0 — все, 1 — только видео, 2 — только Shorts
+    var filter by remember { mutableStateOf(0) }
     fun load() {
         error = null
         scope.launch {
@@ -554,57 +637,109 @@ private fun NotificationsPage(modifier: Modifier, onShort: (String) -> Unit, onO
     }
     LaunchedEffect(Unit) { load() }
     val c = MaterialTheme.colorScheme
-    Box(modifier) {
-        val list = items
-        when {
-            error != null && list == null -> Message(tr(R.string.yt_load_failed, error.orEmpty()), tr(R.string.action_retry)) { load() }
-            list == null -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-            list.isEmpty() -> Message(tr(R.string.yt_no_notifications), null) {}
-            else -> androidx.compose.material3.pulltorefresh.PullToRefreshBox(
-                isRefreshing = refreshing, onRefresh = { refreshing = true; load() }, modifier = Modifier.fillMaxSize(),
-            ) {
-                BoxWithConstraints(Modifier.fillMaxSize()) {
-                    val thumbWidth = (maxWidth * 0.28f).coerceIn(112.dp, 200.dp)
-                    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 16.dp)) {
-                        item {
-                            Text(tr(R.string.yt_notifications), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp))
+    // «Все», «Видео», «Shorts» — страницы, листаются свайпом; свайп здесь не переключает вкладки приложения
+    val pager = androidx.compose.foundation.pager.rememberPagerState { 3 }
+    LaunchedEffect(pager.currentPage) { filter = pager.currentPage }
+    val keepSwipe = remember {
+        object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+            override fun onPostScroll(consumed: androidx.compose.ui.geometry.Offset, available: androidx.compose.ui.geometry.Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource) =
+                androidx.compose.ui.geometry.Offset(available.x, 0f)
+            override suspend fun onPostFling(consumed: androidx.compose.ui.unit.Velocity, available: androidx.compose.ui.unit.Velocity) =
+                androidx.compose.ui.unit.Velocity(available.x, 0f)
+        }
+    }
+    Column(modifier) {
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(tr(R.string.yt_notifications), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.padding(end = 8.dp))
+            listOf(0 to tr(R.string.yt_all), 1 to tr(R.string.yt_videos), 2 to tr(R.string.yt_shorts)).forEach { (k, label) ->
+                FilterChip(
+                    selected = filter == k, onClick = { filter = k; scope.launch { pager.animateScrollToPage(k) } }, label = { Text(label) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.inverseSurface,
+                        selectedLabelColor = MaterialTheme.colorScheme.inverseOnSurface,
+                    ),
+                )
+            }
+        }
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            val list = items
+            when {
+                error != null && list == null -> Message(tr(R.string.yt_load_failed, error.orEmpty()), tr(R.string.action_retry)) { load() }
+                list == null -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                list.isEmpty() -> Message(tr(R.string.yt_no_notifications), null) {}
+                else -> androidx.compose.material3.pulltorefresh.PullToRefreshBox(
+                    isRefreshing = refreshing, onRefresh = { refreshing = true; load() }, modifier = Modifier.fillMaxSize(),
+                ) {
+                    androidx.compose.foundation.pager.HorizontalPager(
+                        state = pager, beyondViewportPageCount = 1,
+                        modifier = Modifier.fillMaxSize().nestedScroll(keepSwipe),
+                    ) { page ->
+                        val rows = when (page) {
+                            1 -> list.filter { !it.isShort }
+                            2 -> list.filter { it.isShort }
+                            else -> list
                         }
-                        // Ролики и Shorts — отдельными разделами (заголовки — только если есть и то и другое)
-                        val (shorts, videos) = list.partition { it.isShort }
-                        val both = shorts.isNotEmpty() && videos.isNotEmpty()
-                        val rows: List<Any> = (if (both) listOf<Any>(tr(R.string.yt_videos)) else emptyList()) + videos +
-                            (if (both) listOf<Any>(tr(R.string.yt_shorts)) else emptyList()) + shorts
-                        items(rows) { e ->
-                            if (e is String) Text(e, style = MaterialTheme.typography.titleSmall, color = c.onSurfaceVariant, modifier = Modifier.padding(start = 16.dp, top = 10.dp, bottom = 4.dp))
-                            else (e as com.offplayer.app.youtube.YtNotification).let { n ->
-                            Row(
-                                Modifier.fillMaxWidth()
-                                    .clickable(enabled = n.videoId != null || n.channelId != null) {
-                                        // Ролик — в плеер; оповещение без ролика открывает канал автора
-                                        val vid = n.videoId
-                                        if (vid != null && n.isShort) onShort(vid)
-                                        else if (vid != null) onOpen(vid, n.text, n.thumbnail)
-                                        else n.channelId?.let { com.offplayer.app.youtube.YouTubeNav.openChannel(it, "") }
-                                    }
-                                    .padding(start = 6.dp, end = 16.dp, top = 10.dp, bottom = 10.dp),
-                                verticalAlignment = Alignment.Top,
-                            ) {
-                                // Непрочитанное — точка слева, как в YouTube
-                                Box(Modifier.padding(top = 22.dp, end = 6.dp).size(5.dp).clip(RoundedCornerShape(3.dp)).background(if (n.read) Color.Transparent else c.primary))
-                                Avatar(n.avatar, 48.dp)
-                                Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
-                                    Text(n.text, style = MaterialTheme.typography.bodyLarge, maxLines = 4, overflow = TextOverflow.Ellipsis)
-                                    if (n.time.isNotBlank()) Text(n.time, style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant, modifier = Modifier.padding(top = 2.dp))
+                        BoxWithConstraints(Modifier.fillMaxSize()) {
+                            val thumbWidth = (maxWidth * 0.28f).coerceIn(112.dp, 200.dp)
+                            if (rows.isEmpty()) Message(tr(R.string.yt_no_notifications), null) {}
+                            else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 16.dp)) {
+                                items(rows) { n ->
+                                    NotificationRow(n, thumbWidth, wideShorts = page == 0, onShort = onShort, onOpen = onOpen)
                                 }
-                                n.thumbnail?.let {
-                                    // Превью Shorts вертикальное, как в YouTube
-                                    AsyncImage(it, null, contentScale = ContentScale.Crop, modifier = (if (n.isShort) Modifier.width(thumbWidth * 0.4f).aspectRatio(9f / 16f) else Modifier.width(thumbWidth).aspectRatio(16f / 9f)).clip(RoundedCornerShape(10.dp)))
-                                }
-                            }
                             }
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+/** Строка оповещения: точка непрочитанного, аватар, текст и время, превью ролика. */
+@Composable
+private fun NotificationRow(
+    n: com.offplayer.app.youtube.YtNotification,
+    thumbWidth: androidx.compose.ui.unit.Dp,
+    wideShorts: Boolean,
+    onShort: (String) -> Unit,
+    onOpen: (id: String, title: String, thumbnail: String?) -> Unit,
+) {
+    val c = MaterialTheme.colorScheme
+    Row(
+        Modifier.fillMaxWidth()
+            .clickable(enabled = n.videoId != null || n.channelId != null) {
+                // Ролик — в плеер; оповещение без ролика открывает канал автора
+                val vid = n.videoId
+                if (vid != null && n.isShort) onShort(vid)
+                else if (vid != null && n.commentId != null) {
+                    // Ответ на комментарий — страница комментариев с этим ответом, ролик не запускается
+                    com.offplayer.app.youtube.YouTubeNav.commentsPage.value = com.offplayer.app.youtube.YouTubeNav.LinkedComment(vid, n.commentId, n.watchParams)
+                }
+                else if (vid != null) onOpen(vid, n.text, n.thumbnail)
+                else n.channelId?.let { com.offplayer.app.youtube.YouTubeNav.openChannel(it, "") }
+            }
+            .padding(start = 6.dp, end = 16.dp, top = 10.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        // Непрочитанное — точка слева, как в YouTube
+        Box(Modifier.padding(top = 22.dp, end = 6.dp).size(5.dp).clip(RoundedCornerShape(3.dp)).background(if (n.read) Color.Transparent else c.primary))
+        Avatar(n.avatar, 48.dp)
+        Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
+            Text(n.text, style = MaterialTheme.typography.bodyLarge, maxLines = 4, overflow = TextOverflow.Ellipsis)
+            if (n.time.isNotBlank()) Text(n.time, style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant, modifier = Modifier.padding(top = 2.dp))
+        }
+        n.thumbnail?.let { url ->
+            when {
+                // Во «Все» Shorts — в рамке как у роликов: сам кадр по центру, по бокам — его размытое продолжение
+                n.isShort && wideShorts -> Box(Modifier.width(thumbWidth).aspectRatio(16f / 9f).clip(RoundedCornerShape(10.dp)).background(c.surfaceVariant)) {
+                    AsyncImage(url, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().blur(18.dp))
+                    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.18f)))
+                    AsyncImage(url, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxHeight().aspectRatio(9f / 16f).align(Alignment.Center))
+                }
+                // В разделе Shorts — вертикальное превью, как в YouTube
+                n.isShort -> AsyncImage(url, null, contentScale = ContentScale.Crop, modifier = Modifier.width(thumbWidth * 0.4f).aspectRatio(9f / 16f).clip(RoundedCornerShape(10.dp)))
+                else -> AsyncImage(url, null, contentScale = ContentScale.Crop, modifier = Modifier.width(thumbWidth).aspectRatio(16f / 9f).clip(RoundedCornerShape(10.dp)))
             }
         }
     }
@@ -663,6 +798,7 @@ private fun AccountButton(signedIn: Boolean, onSignIn: () -> Unit, onAddAccount:
 }
 
 /** История просмотра: шапка «История», Shorts одной строкой и ниже ролики списком — как в приложении YouTube. */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 private fun HistoryPage(
     state: FeedState,
@@ -671,6 +807,7 @@ private fun HistoryPage(
     onSignIn: () -> Unit,
     onBack: () -> Unit,
     onMore: () -> Unit,
+    onRefresh: () -> Unit,
     onPlay: (YtVideo) -> Unit,
     onShort: (YtVideo) -> Unit,
     onDownload: (String) -> Unit,
@@ -682,7 +819,7 @@ private fun HistoryPage(
             .distinctUntilChanged()
             .collect { last -> if (last >= state.items.size - 5 && state.items.isNotEmpty()) onMore() }
     }
-    Column(Modifier.fillMaxSize().statusBarsPadding()) {
+    Column(Modifier.fillMaxSize().then(Modifier.stableStatusBarsPadding())) {
         Row(Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.size(40.dp)) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, tr(R.string.action_back)) }
             Text(tr(R.string.yt_history), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 8.dp))
@@ -693,7 +830,10 @@ private fun HistoryPage(
                 state.items.isEmpty() && state.shorts.isEmpty() && state.loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                 state.items.isEmpty() && state.error != null -> Message(tr(R.string.yt_load_failed, state.error.orEmpty()), tr(R.string.action_retry)) { onMore() }
                 state.items.isEmpty() && state.shorts.isEmpty() && state.loaded -> Message(tr(R.string.yt_empty), null) {}
-                else -> LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = 16.dp)) {
+                // Потянуть вниз — обновить историю, как ленту
+                else -> androidx.compose.material3.pulltorefresh.PullToRefreshBox(
+                    isRefreshing = state.loading && state.refreshing, onRefresh = onRefresh, modifier = Modifier.fillMaxSize(),
+                ) { LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = 16.dp)) {
                     if (state.shorts.isNotEmpty()) item { ShortsRow(state.shorts, onShort) }
                     items(state.items, key = { "h_" + it.id }) { v ->
                         VideoRow(
@@ -702,20 +842,34 @@ private fun HistoryPage(
                             onChannel = v.channelId?.let { id -> { onChannel(id, v.channel) } },
                         )
                     }
-                    if (state.loading && state.items.isNotEmpty()) item {
+                    if (state.loading && !state.refreshing && state.items.isNotEmpty()) item {
                         Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(Modifier.size(28.dp)) }
                     }
-                }
+                } }
             }
         }
+    }
+}
+
+/** Полоса просмотренного под превью, как в YouTube: с YouTube (история аккаунта) или по месту остановки в OFFPlayer. */
+@Composable
+internal fun WatchedBar(v: YtVideo, modifier: Modifier = Modifier) {
+    val percent = maxOf(v.watched, remember(v.id) { com.offplayer.app.youtube.YtResume.percent(v.id) })
+    if (percent <= 0) return
+    Box(modifier.fillMaxWidth().height(4.dp).background(Color.White.copy(alpha = 0.35f))) {
+        Box(Modifier.fillMaxWidth(percent / 100f).height(4.dp).background(com.offplayer.app.ui.BrandRed))
     }
 }
 
 /** Shorts одной строкой: вертикальные карточки с названием и просмотрами поверх превью. */
 @Composable
 private fun ShortsRow(shorts: List<YtVideo>, onOpen: (YtVideo) -> Unit) {
+    // Обновили список — строка снова с начала (с последних просмотренных), а не с прежнего места
+    val rowState = androidx.compose.foundation.lazy.rememberLazyListState()
+    LaunchedEffect(shorts.firstOrNull()?.id) { rowState.scrollToItem(0) }
     androidx.compose.foundation.lazy.LazyRow(
         Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        state = rowState,
         contentPadding = PaddingValues(horizontal = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
@@ -778,6 +932,7 @@ private fun VideoRow(v: YtVideo, opening: Boolean, onClick: () -> Unit, onDownlo
                         modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp).background(Color.Black.copy(alpha = 0.75f), RoundedCornerShape(4.dp)).padding(horizontal = 4.dp, vertical = 1.dp),
                     )
                 }
+                WatchedBar(v, Modifier.align(Alignment.BottomStart))
                 if (opening) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f)), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(Modifier.size(24.dp), color = Color.White)
                 }
@@ -822,6 +977,7 @@ internal fun VideoCard(v: YtVideo, opening: Boolean, onClick: () -> Unit, onDown
                         .padding(horizontal = 5.dp, vertical = 1.dp),
                 )
             }
+            WatchedBar(v, Modifier.align(Alignment.BottomStart))
             if (opening) {
                 Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f)), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = Color.White)
@@ -900,7 +1056,7 @@ private fun SignInDialog(onDone: () -> Unit, url: String = SIGN_IN_URL) {
     var progress by remember { mutableStateOf(true) }
     Dialog(onDismissRequest = onDone, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            Column(Modifier.fillMaxSize().statusBarsPadding()) {
+            Column(Modifier.fillMaxSize().then(Modifier.stableStatusBarsPadding())) {
                 Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onDone) { Icon(Icons.Rounded.Close, tr(R.string.action_close)) }
                     Text(tr(R.string.yt_sign_in_title), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))

@@ -23,6 +23,8 @@ data class YtVideo(
     val isLive: Boolean = false,
     /** Аватар канала. */
     val avatar: String? = null,
+    /** Сколько процентов ролика уже просмотрено (полоса под превью, как в YouTube); 0 — не смотрели. */
+    val watched: Int = 0,
 ) {
     val url: String get() = if (isShort) "https://www.youtube.com/shorts/$id" else "https://www.youtube.com/watch?v=$id"
 }
@@ -193,6 +195,8 @@ object YouTubeApi {
                     for (k in keys) {
                         val v = node.opt(k)
                         when {
+                            // Ролики «только для спонсоров» YouTube показывает и тем, кто не спонсор, — открыть их нельзя
+                            v is JSONObject && (k in VIDEO_RENDERERS || k == "lockupViewModel") && "MEMBERS_ONLY" in v.toString() -> Unit
                             k in VIDEO_RENDERERS && v is JSONObject -> classic(v)?.let { items.putIfAbsent(it.id, it) }
                             k == "lockupViewModel" && v is JSONObject -> lockup(v)?.let { items.putIfAbsent(it.id, it) }
                             k == "shortsLockupViewModel" && v is JSONObject -> short(v)?.let { items.putIfAbsent(it.id, it) }
@@ -262,6 +266,13 @@ object YouTubeApi {
     private fun avatar(node: JSONObject?): String? =
         node?.let { AVATAR.find(it.toString())?.groupValues?.get(1)?.replace("\\/", "/") }
 
+    /** Ролик — Shorts: ведёт в плеер Shorts (в истории и подписках такие ролики приходят обычными карточками). */
+    private fun isShortNode(v: JSONObject): Boolean = v.toString().let { "\"reelWatchEndpoint\"" in it || "/shorts/" in it }
+
+    /** Просмотренная доля ролика, которую YouTube рисует полосой под превью. */
+    private val WATCHED = Regex("""\"(?:percentDurationWatched|startPercent)\":(\d+)""")
+    private fun watchedOf(v: JSONObject): Int = WATCHED.find(v.toString())?.groupValues?.get(1)?.toIntOrNull()?.coerceIn(0, 100) ?: 0
+
     private fun classic(v: JSONObject): YtVideo? {
         val id = v.optString("videoId").takeIf { it.isNotEmpty() } ?: return null
         val owner = v.optJSONObject("ownerText") ?: v.optJSONObject("shortBylineText") ?: v.optJSONObject("longBylineText")
@@ -279,6 +290,8 @@ object YouTubeApi {
             thumbnail = bestThumb(v.optJSONObject("thumbnail")?.optJSONArray("thumbnails"), id),
             isLive = live,
             avatar = avatar(v.optJSONObject("channelThumbnailSupportedRenderers")) ?: avatar(v.optJSONObject("avatar")),
+            isShort = isShortNode(v),
+            watched = watchedOf(v),
         )
     }
 
@@ -305,6 +318,8 @@ object YouTubeApi {
             thumbnail = bestThumb(thumbVm?.optJSONObject("image")?.optJSONArray("sources"), id),
             isLive = badge != null && !isDuration && thumbVm?.toString()?.contains("LIVE") == true,
             avatar = avatar(md?.optJSONObject("image")),
+            isShort = isShortNode(v),
+            watched = watchedOf(v),
         )
     }
 

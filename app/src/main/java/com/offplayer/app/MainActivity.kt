@@ -170,6 +170,13 @@ class MainActivity : ComponentActivity() {
                         com.offplayer.app.youtube.YouTubeNav.shortRequest.value = video
                         com.offplayer.app.youtube.YouTubeNav.openShortsTab.value++
                     }
+                    // Ответ на комментарий — страница комментариев во вкладке YouTube, ролик не запускается
+                    video != null && intent.getStringExtra(EXTRA_YT_COMMENT) != null -> {
+                        com.offplayer.app.youtube.YouTubeNav.commentsPage.value = com.offplayer.app.youtube.YouTubeNav.LinkedComment(
+                            video, intent.getStringExtra(EXTRA_YT_COMMENT)!!, intent.getStringExtra(EXTRA_YT_PARAMS),
+                        )
+                        com.offplayer.app.youtube.YouTubeNav.openYoutubeTab.value++
+                    }
                     video != null -> lifecycleScope.launch {
                         runCatching {
                             com.offplayer.app.youtube.YouTubeStreams.resolve(
@@ -400,6 +407,8 @@ class MainActivity : ComponentActivity() {
         const val EXTRA_YT_VIDEO = "yt_video"
         const val EXTRA_YT_SHORT = "yt_short"
         const val EXTRA_YT_CHANNEL = "yt_channel"
+        const val EXTRA_YT_COMMENT = "yt_comment"
+        const val EXTRA_YT_PARAMS = "yt_params"
         const val ACTION_OPEN_PLAYER = "com.offplayer.app.OPEN_PLAYER"
         const val ACTION_OPEN_VIDEO = "com.offplayer.app.OPEN_VIDEO"
         const val ACTION_OPEN_DOWNLOADS = "com.offplayer.app.OPEN_DOWNLOADS"

@@ -114,4 +114,15 @@
     <string name="yt_push">Сповіщення YouTube</string>
     <string name="yt_push_desc">Нові відео підписок і відповіді — сповіщеннями застосунку</string>
     <string name="yt_notifications_channel">Сповіщення YouTube</string>
+    <string name="yt_hide_replies">Сховати відповіді</string>
+    <string name="yt_more_replies">Показати інші відповіді</string>
+    <string name="yt_replies_title">Відповіді</string>
+    <string name="yt_your_reply">Ваша відповідь…</string>
+    <string name="yt_all">Усі</string>
+    <string name="yt_reply">Відповісти</string>
+    <string name="yt_linked_reply">Відповідь відкрито за посиланням</string>
+    <string name="yt_comments_for">Коментарі до відео «%1$s»</string>
+    <string name="yt_next_up">Далі</string>
+    <string name="yt_play_next">Відтворити</string>
+    <string name="yt_autoplay">Наступне відео</string>
 </resources>

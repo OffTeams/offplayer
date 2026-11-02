@@ -248,7 +248,7 @@ fun ShareSheet(url: String, onClose: () -> Unit, onOpenApp: () -> Unit) {
                             style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.weight(1f),
                         )
-                        Switch(checked = wholePlaylist, onCheckedChange = { wholePlaylist = it })
+                        Switch(checked = wholePlaylist, onCheckedChange = { wholePlaylist = it }, colors = com.offplayer.app.ui.appSwitchColors())
                     }
                 }
             }

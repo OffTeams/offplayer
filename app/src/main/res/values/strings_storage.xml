@@ -111,4 +111,15 @@
     <string name="yt_push">YouTube notifications</string>
     <string name="yt_push_desc">New videos from subscriptions and replies — as app notifications</string>
     <string name="yt_notifications_channel">YouTube notifications</string>
+    <string name="yt_hide_replies">Hide replies</string>
+    <string name="yt_more_replies">Show more replies</string>
+    <string name="yt_replies_title">Replies</string>
+    <string name="yt_your_reply">Your reply…</string>
+    <string name="yt_all">All</string>
+    <string name="yt_reply">Reply</string>
+    <string name="yt_linked_reply">Reply opened from link</string>
+    <string name="yt_comments_for">Comments on the video «%1$s»</string>
+    <string name="yt_next_up">Up next</string>
+    <string name="yt_play_next">Play</string>
+    <string name="yt_autoplay">Autoplay next video</string>
 </resources>
